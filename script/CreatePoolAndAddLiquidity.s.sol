@@ -33,11 +33,7 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
 
     function run() external {
         PoolKey memory poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: lpFee,
-            tickSpacing: tickSpacing,
-            hooks: hookContract
+            currency0: currency0, currency1: currency1, fee: lpFee, tickSpacing: tickSpacing, hooks: hookContract
         });
 
         bytes memory hookData = new bytes(0);
@@ -58,10 +54,10 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
 
         // slippage limits
         uint256 amount0Max = token0Amount + 1; // If at the time of the deposit this is higher, you won't mint
-        uint256 amount1Max = token1Amount + 1;// If at the time of the deposit this is higher, you won't mint
+        uint256 amount1Max = token1Amount + 1; // If at the time of the deposit this is higher, you won't mint
 
         // actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
-        // MINT_POSITION - tells to add tokens to a Liquidity pool 
+        // MINT_POSITION - tells to add tokens to a Liquidity pool
         // SETTLE_PAIR - tells that the caller pays certain amount of tokens
         // mintParams = actual parameters for those two actions
         // Guide: https://docs.uniswap.org/contracts/v4/quickstart/create-pool
@@ -90,6 +86,7 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
         positionManager.multicall{value: valueToPass}(params);
         vm.stopBroadcast();
 
-        IAllowanceTransfer(address(permit2)).approve(address(token0), address(positionManager), type(uint160).max, type(uint48).max);
+        IAllowanceTransfer(address(permit2))
+            .approve(address(token0), address(positionManager), type(uint160).max, type(uint48).max);
     }
 }
