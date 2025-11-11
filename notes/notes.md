@@ -729,6 +729,21 @@ When forge sees
 It actually looks up the file following this path 
 The root here is the actual file where this line is
 
+---------
+
+### PoolId and TokenId
+
+`PoolId poolId = poolKey.toId()`
+
+Pool key is a struct that uniquly identifies the pool
+
+`toId()` function turns this struct into a unique hash
+
+`tokenId` - is a hash that uniquely identifies your LP position
+
+
+
+
 
 
 

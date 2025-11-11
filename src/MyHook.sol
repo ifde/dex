@@ -10,7 +10,13 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 
-contract MyHook is BaseHook {
+import {BaseOverrideFee} from "@openzeppelin/uniswap-hooks/src/fee/BaseOverrideFee.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+/**
+ * @dev A hook that allows the owner to dynamically update the swap fee.
+ */
+contract MyHook is BaseOverrideFee, Ownable {
     using PoolIdLibrary for PoolKey;
 
     // NOTE: ---------------------------------------------------------
@@ -24,73 +30,34 @@ contract MyHook is BaseHook {
     mapping(PoolId => uint256 count) public beforeAddLiquidityCount;
     mapping(PoolId => uint256 count) public beforeRemoveLiquidityCount;
 
-    IPoolManager private _poolManager;
+    uint24 public fee;
 
-    // constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
-    constructor(IPoolManager poolManager) BaseHook() {
-        _poolManager = poolManager;
-    }
+    IPoolManager private _poolManager;
 
     function poolManager() public view override returns (IPoolManager) {
         return IPoolManager(_poolManager);
     }
 
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
-        return Hooks.Permissions({
-            beforeInitialize: false,
-            afterInitialize: false,
-            beforeAddLiquidity: true,
-            afterAddLiquidity: false,
-            beforeRemoveLiquidity: true,
-            afterRemoveLiquidity: false,
-            beforeSwap: true,
-            afterSwap: true,
-            beforeDonate: false,
-            afterDonate: false,
-            beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
-            afterAddLiquidityReturnDelta: false,
-            afterRemoveLiquidityReturnDelta: false
-        });
+    constructor(IPoolManager poolManager) BaseOverrideFee() Ownable(msg.sender) {
+        _poolManager = poolManager;
     }
 
-    // -----------------------------------------------
-    // NOTE: see IHooks.sol for function documentation
-    // -----------------------------------------------
-
-    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
+    /**
+     * @inheritdoc BaseOverrideFee
+     */
+    function _getFee(address, PoolKey calldata, SwapParams calldata, bytes calldata)
         internal
+        view
         override
-        returns (bytes4, BeforeSwapDelta, uint24)
+        returns (uint24)
     {
-        beforeSwapCount[key.toId()]++;
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        return fee;
     }
 
-    function _afterSwap(address, PoolKey calldata key, SwapParams calldata, BalanceDelta, bytes calldata)
-        internal
-        override
-        returns (bytes4, int128)
-    {
-        afterSwapCount[key.toId()]++;
-        return (BaseHook.afterSwap.selector, 0);
-    }
-
-    function _beforeAddLiquidity(address, PoolKey calldata key, ModifyLiquidityParams calldata, bytes calldata)
-        internal
-        override
-        returns (bytes4)
-    {
-        beforeAddLiquidityCount[key.toId()]++;
-        return BaseHook.beforeAddLiquidity.selector;
-    }
-
-    function _beforeRemoveLiquidity(address, PoolKey calldata key, ModifyLiquidityParams calldata, bytes calldata)
-        internal
-        override
-        returns (bytes4)
-    {
-        beforeRemoveLiquidityCount[key.toId()]++;
-        return BaseHook.beforeRemoveLiquidity.selector;
+    /**
+     * @notice Sets the swap fee, denominated in hundredths of a bip.
+     */
+    function setFee(uint24 _fee) external onlyOwner {
+        fee = _fee;
     }
 }

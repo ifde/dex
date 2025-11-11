@@ -19,3 +19,7 @@ https://atiselsts.github.io/pdfs/uniswap-v3-liquidity-math.pdf
 Uniswap V3 WhitePaper 
 
 https://app.uniswap.org/whitepaper-v3.pdf
+
+Dynamics Fee Implementation Guide Uniswap V4
+
+https://uniswap-docs-staging.vercel.app/documentation/featured-guides/hooks/v4/guides-for-solidity-contracts/dynamic-fee-pools
