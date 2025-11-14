@@ -741,6 +741,65 @@ Pool key is a struct that uniquly identifies the pool
 
 `tokenId` - is a hash that uniquely identifies your LP position
 
+-------
+
+### Fees 
+
+Fees are measured in pips 
+
+1 pip = 1 / 1,000,000  = 1 / 10,000 %
+
+10,000 pip = 1 %
+
+Note: 
+
+1 bip (basic point) = 1 / 10,000 = 1 / 100 %
+
+### Swaps with Fees
+
+```
+assertApproxEqAbs(
+    uint256(int256(swapDelta.amount1())),
+    uint256(-amountSpecified).mulWadDown(1e18 - hook.HOOK_FEE()),
+    0.0001e18
+);
+```
+
+`swapDelta` struct has the changes of the currencies for the pool:
+
+```
+struct BalanceDelta {
+    int128 amount0;  // Net change in token0 for the POOL
+    int128 amount1;  // Net change in token1 for the POOL
+}
+```
+
+`uint256(int256(swapDelta.amount1()))` here, token1 was withdrawn from the pool, so the `swapDelta.amount1()` is less than zero 
+
+`uint()` - this converts in to a positive number
+
+------
+
+### Calldata
+
+`calldata` - a keyword that says the variable passed to the function is not modifiable.
+Essentially, it is a pointer. 
+To pass a value as a call data, you can use a low-level call:
+
+```
+bytes memory payload = abi.encodeWithSelector(
+    IContractB.processData.selector, // The function identifier
+    valuesToPass,
+    categoryToPass,
+    extraDataToPass
+);
+// 'payload' is now a bytes variable in memory containing the full ABI-encoded calldata
+
+// Perform the low-level external call
+contractBAddress.call(payload);
+```
+
+
 
 
 

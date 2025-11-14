@@ -137,7 +137,7 @@ contract MyHookTest is BaseTest {
 
         // With higher fee, output should be lower (more fee taken)
         // Note: This might be hard to test precisely due to price impact
-        // assertTrue(swapDelta2.amount1() < swapDelta1.amount1(), "Higher fee should result in less output");
+        assertTrue(swapDelta2.amount1() < swapDelta1.amount1(), "Higher fee should result in less output");
     }
 
     function testOnlyOwnerCanSetFee() public {

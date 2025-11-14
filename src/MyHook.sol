@@ -13,11 +13,14 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/type
 import {BaseOverrideFee} from "@openzeppelin/uniswap-hooks/src/fee/BaseOverrideFee.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+
 /**
  * @dev A hook that allows the owner to dynamically update the swap fee.
  */
 contract MyHook is BaseOverrideFee, Ownable {
     using PoolIdLibrary for PoolKey;
+    using LPFeeLibrary for uint24;
 
     // NOTE: ---------------------------------------------------------
     // state variables should typically be unique to a pool
@@ -54,10 +57,27 @@ contract MyHook is BaseOverrideFee, Ownable {
         return fee;
     }
 
+        /**
+     * @dev Check that the pool key has a dynamic fee.
+     */
+    function _afterInitialize(address, PoolKey calldata key, uint160, int24)
+        internal
+        override
+        returns (bytes4)
+    {
+        if (!key.fee.isDynamicFee()) revert NotDynamicFee();
+        poolManager().updateDynamicLPFee(key, fee);
+        return this.afterInitialize.selector;
+    }
+
     /**
      * @notice Sets the swap fee, denominated in hundredths of a bip.
      */
     function setFee(uint24 _fee) external onlyOwner {
         fee = _fee;
+    }
+
+    function poke(address, PoolKey calldata key, SwapParams calldata params, bytes calldata data) internal {
+        poolManager().updateDynamicLPFee(key, _getFee(address(0), key, params, data));
     }
 }
