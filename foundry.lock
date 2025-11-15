@@ -1,4 +1,7 @@
 {
+  "lib/chainlink-local": {
+    "rev": "7d8b2f888e1f10c8841ccd9e0f4af0f5baf11dab"
+  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.11.0",

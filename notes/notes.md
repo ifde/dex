@@ -706,6 +706,8 @@ Basic private key
 Note: `forge test` creates its own internal network 
 (so that's even a little bit better)
 
+`forge test --match-path test/BAHook.t.sol`
+
 `--broadcast` means that the transactions that are marked as `vm.broadcast()` will be executed from your acount
 
 -------
@@ -798,6 +800,53 @@ bytes memory payload = abi.encodeWithSelector(
 // Perform the low-level external call
 contractBAddress.call(payload);
 ```
+
+### Impremanent Loss (IL)
+
+IL (Impermanent Loss) occurs when liquidity providers (LPs) see a reduction in asset value
+within a liquidity pool compared to holding them outside, especially in volatile markets, diminishing their incentive to provide liquidity.
+
+### Types of dynamic Fees
+
+![alt text](image-3.png)
+
+1. Block-adaptive 
+Idea: if A becomes less desirable (price A / price B decreases), then traders will likely want to get more of token B
+That means that the volume A -> B increases
+We want to reflect that by increasing a fee in the A -> B direction: 
+F_ab = F_ab + F_step
+
+F_step = 5 bps (1 bps = 1 basic point = 1 / 100 %)
+
+F_initial = 30 bps
+
+
+### Binance API endpoints 
+
+https://github.com/binance/binance-public-data/
+
+https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#klinecandlestick-data
+
+https://data.binance.vision/?prefix=
+
+They have a KLines data (data from candle sticks)
+
+You can use API calls to get it
+
+### Aggregator 
+
+https://docs.chain.link/chainlink-local/api-reference/v0.2.3/mock-v3-aggregator
+
+It gives price feed to the contract 
+(at it is data that is outside of the blockchain)
+
+
+
+
+
+
+
+
 
 
 
