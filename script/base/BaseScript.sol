@@ -27,8 +27,8 @@ contract BaseScript is Script, Deployers {
     IHooks constant hookContract = IHooks(address(0));
     /////////////////////////////////////
 
-    Currency immutable currency0;
-    Currency immutable currency1;
+    Currency currency0;
+    Currency currency1;
 
     constructor() {
         // Make sure artifacts are available, either deploy or configure.

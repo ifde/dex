@@ -11,35 +11,28 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/type
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 
-// Interface for price feeds (e.g., Chainlink AggregatorV3Interface)
-interface IAggregatorV3 {
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    );
-}
+import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
+
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev A hook implementing Block Adaptive (BA) dynamic fees using external CEX prices.
  * - Uses ETH/USDT and SHIB/USDT price feeds to compute ETH/SHIB ratio.
  * - Adjusts fees based on ratio changes per block.
  */
-contract BAHook is BaseOverrideFee {
+contract BAHook is BaseOverrideFee, Ownable {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using LPFeeLibrary for uint24;
 
     // Constants
-    uint24 private constant INITIAL_FEE = 3000; // 30 bps
-    uint24 private constant FSTEP = 500; // 5 bps
-    uint24 private constant MAX_FEE = 10000; // Cap at 100 bps
+    uint24 private INITIAL_FEE = 3000; // 30 bps
+    uint24 private FSTEP = 500; // 5 bps
+    uint24 private MAX_FEE = 10000; // Cap at 100 bps
 
     // Price feeds
-    IAggregatorV3 private immutable _ethUsdtFeed;
-    IAggregatorV3 private immutable _shibUsdtFeed;
+    AggregatorV2V3Interface private immutable _ethUsdtFeed;
+    AggregatorV2V3Interface private immutable _shibUsdtFeed;
 
     // State per pool
     mapping(PoolId => uint24) public feeAB; // Fee for A → B (ETH → SHIB)
@@ -49,10 +42,10 @@ contract BAHook is BaseOverrideFee {
 
     IPoolManager private immutable _poolManager;
 
-    constructor(IPoolManager poolManager, address ethUsdtFeed, address shibUsdtFeed) BaseOverrideFee() {
+    constructor(IPoolManager poolManager, AggregatorV2V3Interface ethUsdtFeed, AggregatorV2V3Interface shibUsdtFeed) BaseOverrideFee() Ownable(msg.sender) {
         _poolManager = poolManager;
-        _ethUsdtFeed = IAggregatorV3(ethUsdtFeed);
-        _shibUsdtFeed = IAggregatorV3(shibUsdtFeed);
+        _ethUsdtFeed = ethUsdtFeed;
+        _shibUsdtFeed = shibUsdtFeed;
     }
 
     function poolManager() public view override returns (IPoolManager) {
@@ -99,6 +92,13 @@ contract BAHook is BaseOverrideFee {
 
     function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data) public view returns (uint24) {
         return _getFee(a, key, params, data);
+    }
+
+     /**
+     * @notice Sets the initial fee, denominated in hundredths of a bip.
+     */
+    function setInitialFee(uint24 _fee) external onlyOwner {
+        INITIAL_FEE = _fee;
     }
 
     /**

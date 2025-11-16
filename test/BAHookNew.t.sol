@@ -20,16 +20,17 @@ import {BAHook} from "../src/BAHookNew.sol";
 import {MockV3Aggregator} from "@chainlink/local/src/data-feeds/MockV3Aggregator.sol";
 import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
 
-import {BaseScript} from "./base/BaseScript.sol";
-import {LiquidityHelpers} from "./base/LiquidityHelpers.sol";
-import {Deployers} from "../test/utils/Deployers.sol";
+import {BaseScript} from "../script/base/BaseScript.sol";
+import {LiquidityHelpers} from "../script/base/LiquidityHelpers.sol";
 
-import {EasyPosm} from "../test/utils/libraries/EasyPosm.sol";
+import {BaseTest} from "./utils/BaseTest.sol";
+import {EasyPosm} from "./utils/libraries/EasyPosm.sol";
+
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 
-contract DeployBAHookScript is BaseScript, LiquidityHelpers {
+contract BAHookTest is BaseTest {
     using EasyPosm for IPositionManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -39,6 +40,9 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
     MockV3Aggregator ethFeed;
     MockV3Aggregator shibFeed;
     PoolKey poolKey;
+
+    Currency currency0;
+    Currency currency1;
 
     /////////////////////////////////////
     // --- Configure These ---
@@ -59,7 +63,8 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
     uint256 tokenId;
     PoolId poolId;
 
-    function run() external {
+    function setUp() public {
+        deployArtifactsAndLabel();
 
         (currency0, currency1) = deployCurrencyPair();
 
@@ -68,21 +73,17 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         shibFeed = new MockV3Aggregator(8, 30000000); // $0.03 SHIB
 
         // Deploy BAHook
-        uint160 flags = 
+        address flags = address(
             uint160(
                 Hooks.AFTER_INITIALIZE_FLAG |
                 Hooks.BEFORE_SWAP_FLAG |
                 Hooks.AFTER_SWAP_FLAG
-            ) ^ (0x4444 << 144);
+            ) ^ (0x4444 << 144)
+        );
 
         bytes memory constructorArgs = abi.encode(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
-        (address hookAddress, bytes32 salt) =
-        HookMiner.find(CREATE2_FACTORY, flags, type(BAHook).creationCode, constructorArgs);
-
-        // Deploy the hook using CREATE2
-        BAHook hook = new BAHook{salt: salt}(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
-
-        require(address(hook) == hookAddress, "DeployHookScript: Hook Address Mismatch");
+        deployCodeTo("BAHookNew.sol:BAHook", constructorArgs, flags);
+        hook = BAHook(flags);
 
         // -------------
 
@@ -144,18 +145,34 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
             block.timestamp,
             Constants.ZERO_BYTES
         );
-
-        // Read and simulate market data
-        simulateMarketData();
     }
 
-    function simulateMarketData() internal {
+    // Read and simulate market data
+    function testMarketData() public {
+
+        // Simulation parameters
+        uint256 puu = 100; // Probability for uninformed users (10% = 100/1000)
+        uint256 m = 0.01e18; // Mean fraction for uninformed amounts (1%)
+        uint256 sigma = 0.005e18; // Std dev for uninformed amounts (0.5%)
+
+        // Approximate initial pool reserves (x for token0/ETH, y for token1/SHIB)
+        uint256 x = token0Amount; // Initial ETH reserve
+        uint256 y = token1Amount; // Initial SHIB reserve
+
         // Read ETH/USDT data
-        string memory ethData = vm.readFile("ETHUSDT-1m-2024-04.csv");
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/ETHUSDT-1m-2024-04.csv");
+
+        string memory ethData = vm.readFile(path);
         string[] memory ethLines = split(ethData, "\n");
 
+        console.log(path);
+
+        root = vm.projectRoot();
+        path = string.concat(root, "/SHIBUSDT-1m-2024-04.csv");
+
         // Read SHIB/USDT data (assume same length/timestamps)
-        string memory shibData = vm.readFile("SHIBUSDT-1m-2024-04.csv");
+        string memory shibData = vm.readFile(path);
         string[] memory shibLines = split(shibData, "\n");
 
         require(ethLines.length == shibLines.length, "Data length mismatch");
@@ -163,17 +180,48 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         uint256 initialBlock = block.number;
 
         for (uint i = 0; i < ethLines.length; i++) {
+            if (ethLines[i].length == 0) {
+              break;
+            }
+
             // Parse ETH close price (5th field, 0-indexed)
             string[] memory ethFields = split(ethLines[i], ",");
+            if (ethFields.length < 5) {
+              continue;
+            }
             int256 ethClose = parseInt(ethFields[4]);
 
             // Parse SHIB close price
-            string[] memory shibFields = split(shibLines[i], "\t");
+            string[] memory shibFields = split(shibLines[i], ",");
+            if (shibFields.length < 5) {
+              continue;
+            }
             int256 shibClose = parseInt(shibFields[4]);
 
             // Update mocks
             ethFeed.updateAnswer(ethClose);
             shibFeed.updateAnswer(shibClose);
+
+            // Simulate informed user trade
+            simulateInformedTrade(ethClose, shibClose, x, y);
+
+            // Simulate uninformed user trade
+            if (vm.randomUint() % 1000 < puu) {
+                bool zeroForOne = vm.randomUint() % 2 == 0;
+                uint256 fraction = sampleNormal(m, sigma);
+                uint256 amountIn = zeroForOne ? (x * fraction) / 1e18 : (y * fraction) / 1e18;
+                if (amountIn > 0) {
+                    try swapRouter.swapExactTokensForTokens({
+                        amountIn: amountIn,
+                        amountOutMin: 0,
+                        zeroForOne: zeroForOne,
+                        poolKey: poolKey,
+                        hookData: Constants.ZERO_BYTES,
+                        receiver: address(this),
+                        deadline: block.timestamp + 1
+                    }) {} catch {}
+                }
+            }
 
             // Roll to next block (simulate 1-minute snapshot)
             vm.roll(initialBlock + i);
@@ -197,6 +245,83 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
             ));
             console.log(logMessage);
         }
+    }
+
+    function truncateTickSpacing(int24 tick, int24 tickSpacing) internal pure returns (int24) {
+        /// forge-lint: disable-next-line(divide-before-multiply)
+        return ((tick / tickSpacing) * tickSpacing);
+    }
+
+    // Helper: Simulate informed user trade
+    function simulateInformedTrade(int256 ethPrice, int256 shibPrice, uint256 x, uint256 y) internal {
+        // pCEX = ethPrice / shibPrice (fixed point, 8 decimals each, so divide by 1e8)
+        uint256 pCEX = (uint256(ethPrice) * 1e18) / uint256(shibPrice); // Scale to 18 decimals
+
+        // Get current fee (average for simplicity)
+        uint24 feeAB = hook.getFee(address(0), poolKey, SwapParams({zeroForOne: true, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), "");
+        uint24 feeBA = hook.getFee(address(0), poolKey, SwapParams({zeroForOne: false, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), "");
+        uint256 fee = ((uint256(feeAB) + uint256(feeBA)) / 2) * 1e14; // Fee in 18 decimals (bps * 1e14 for 0.01% to 1e18)
+
+        uint256 oneMinusFee = 1e18 - fee;
+
+        // deltaX* = (sqrt(x * y * (1 - fee) / pCEX) - x) / (1 - fee)
+        uint256 xy = (x * y) / 1e18;
+        uint256 numerator = (xy * oneMinusFee) / pCEX;
+        uint256 sqrtNum = sqrt(numerator); // Approximate sqrt (implement or use library)
+        uint256 deltaX = (sqrtNum > x) ? ((sqrtNum - x) * 1e18) / oneMinusFee : 0;
+
+        if (deltaX > 1e16) { // Opportunity threshold
+            try swapRouter.swapExactTokensForTokens({
+                amountIn: deltaX / 1e18,
+                amountOutMin: 0,
+                zeroForOne: true,
+                poolKey: poolKey,
+                hookData: Constants.ZERO_BYTES,
+                receiver: address(this),
+                deadline: block.timestamp + 1
+            }) {} catch {}
+        }
+
+        // deltaY* = (x * y / (x + deltaX)) * (1 - fee) - y
+        uint256 xPlusDeltaX = x + deltaX;
+        uint256 deltaY = ((x * y / xPlusDeltaX) * oneMinusFee / 1e18) - y;
+
+        // deltaY* = (x * y / (x + deltaX)) * (1 - fee) - y
+        uint256 xPlusDeltaX = x + deltaX;
+        uint256 deltaY = ((x * y / xPlusDeltaX) * oneMinusFee / 1e18) - y;
+
+        if (deltaY > 1e16) {
+            try swapRouter.swapExactTokensForTokens({
+                amountIn: deltaY / 1e18,
+                amountOutMin: 0,
+                zeroForOne: false,
+                poolKey: poolKey,
+                hookData: Constants.ZERO_BYTES,
+                receiver: address(this),
+                deadline: block.timestamp + 1
+            }) {} catch {}
+        }
+    }
+
+    // Helper: Sample from normal distribution (simplified Box-Muller approximation)
+    function sampleNormal(uint256 mean, uint256 stddev) internal returns (uint256) {
+        uint256 u1 = vm.randomUint() % 1e18;
+        uint256 u2 = vm.randomUint() % 1e18;
+        int256 z = int256(sqrt(-2 * log(u1 / 1e18) * 1e18) * cos(2 * 3.1415926535 * u2 / 1e18)); // Approximate
+        uint256 sample = uint256(int256(mean) + z * int256(stddev) / 1e18);
+        return sample < 0.001e18 ? 0.001e18 : sample > 0.1e18 ? 0.1e18 : sample; // Clamp
+    }
+
+    // Helpers for sqrt, log, cos (implement or use approximations; placeholders)
+    function sqrt(uint256 x) internal pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        uint256 y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+        return y;
     }
 
     // Simple string splitting (by delimiter)
