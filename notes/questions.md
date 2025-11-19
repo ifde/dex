@@ -19,3 +19,18 @@ What does a corresponding delta y mean?
 ![alt text](image-6.png)
 
 (p, m, sigma)
+
+-------
+
+Разные комиссии - как реализовывать 
+
+Автоматизировать деплой:
+тесты
+замеры
+
+Посмореть на надежность / экономичность
+
+Balancer, CopSwap, Balancer, UniswapV4, Github
+
+--------
+

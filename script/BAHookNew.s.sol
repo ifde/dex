@@ -39,6 +39,8 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
     MockV3Aggregator ethFeed;
     MockV3Aggregator shibFeed;
     PoolKey poolKey;
+    uint256 tokenId;
+    PoolId poolId;
 
     /////////////////////////////////////
     // --- Configure These ---
@@ -51,36 +53,29 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
     uint256 public token0Amount = 100e18;
     uint256 public token1Amount = 100e18;
 
-    // range of the position, must be a multiple of tickSpacing
-    int24 tickLower;
-    int24 tickUpper;
-    /////////////////////////////////////
-
-    uint256 tokenId;
-    PoolId poolId;
-
     function run() external {
-
-        (currency0, currency1) = deployCurrencyPair();
+        // (currency0, currency1) = deployCurrencyPair();
 
         // Deploy MockV3Aggregators (8 decimals, initial prices)
         ethFeed = new MockV3Aggregator(8, 300000000000); // $3000 ETH
         shibFeed = new MockV3Aggregator(8, 30000000); // $0.03 SHIB
 
         // Deploy BAHook
-        uint160 flags = 
-            uint160(
-                Hooks.AFTER_INITIALIZE_FLAG |
-                Hooks.BEFORE_SWAP_FLAG |
-                Hooks.AFTER_SWAP_FLAG
-            ) ^ (0x4444 << 144);
+        uint160 flags =
+            uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144);
 
-        bytes memory constructorArgs = abi.encode(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
+        AggregatorV2V3Interface addr1 = AggregatorV2V3Interface(ethFeed);
+        AggregatorV2V3Interface addr2 = AggregatorV2V3Interface(shibFeed);
+
+        bytes memory constructorArgs =
+            abi.encode(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
         (address hookAddress, bytes32 salt) =
-        HookMiner.find(CREATE2_FACTORY, flags, type(BAHook).creationCode, constructorArgs);
+            HookMiner.find(CREATE2_FACTORY, flags, type(BAHook).creationCode, constructorArgs);
 
         // Deploy the hook using CREATE2
-        BAHook hook = new BAHook{salt: salt}(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
+        vm.startBroadcast();
+        hook = new BAHook{salt: salt}(poolManager, AggregatorV2V3Interface(ethFeed), AggregatorV2V3Interface(shibFeed));
+        vm.stopBroadcast();
 
         require(address(hook) == hookAddress, "DeployHookScript: Hook Address Mismatch");
 
@@ -96,9 +91,6 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
 
         int24 tickLower = truncateTickSpacing((currentTick - 750 * tickSpacing), tickSpacing);
         int24 tickUpper = truncateTickSpacing((currentTick + 750 * tickSpacing), tickSpacing);
-    
-        // Initialize the pool - this will trigger afterInitialize and set the dynamic fee
-        poolManager.initialize(poolKey, startingPrice);
 
         // Converts token amounts to liquidity units
         // i.e. "This is my liquidity pool with this range, I have this amounts of money"
@@ -116,8 +108,6 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         uint256 amount0Max = token0Amount + 1; // If at the time of the deposit this is higher, you won't mint
         uint256 amount1Max = token1Amount + 1; // If at the time of the deposit this is higher, you won't mint
 
-
-
         // Provide full-range liquidity to the pool
         /*
         tickLower = TickMath.minUsableTick(poolKey.tickSpacing);
@@ -133,17 +123,23 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         );
         */
 
-        (tokenId,) = positionManager.mint(
-            poolKey,
-            tickLower,
-            tickUpper,
-            liquidity,
-            amount0Max,
-            amount1Max,
-            address(this),
-            block.timestamp,
-            Constants.ZERO_BYTES
+        (bytes memory actions, bytes[] memory params) = _mintLiquidityParams(
+            poolKey, tickLower, tickUpper, liquidity, amount0Max, amount1Max, deployerAddress, Constants.ZERO_BYTES
         );
+
+        uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
+
+        vm.startBroadcast();
+
+        tokenApprovals();
+
+        // Initialize the pool - this will trigger afterInitialize and set the dynamic fee
+        poolManager.initialize(poolKey, startingPrice);
+
+        // Modify Liquidities
+        positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), block.timestamp + 3600);
+
+        vm.stopBroadcast();
 
         // Read and simulate market data
         simulateMarketData();
@@ -162,13 +158,23 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
 
         uint256 initialBlock = block.number;
 
-        for (uint i = 0; i < ethLines.length; i++) {
+        for (uint256 i = 0; i < ethLines.length; i++) {
+            if (bytes(ethLines[i]).length == 0) {
+                break;
+            }
+
             // Parse ETH close price (5th field, 0-indexed)
             string[] memory ethFields = split(ethLines[i], ",");
+            if (ethFields.length < 5) {
+                continue;
+            }
             int256 ethClose = parseInt(ethFields[4]);
 
             // Parse SHIB close price
-            string[] memory shibFields = split(shibLines[i], "\t");
+            string[] memory shibFields = split(shibLines[i], ",");
+            if (shibFields.length < 5) {
+                continue;
+            }
             int256 shibClose = parseInt(shibFields[4]);
 
             // Update mocks
@@ -179,36 +185,32 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
             vm.roll(initialBlock + i);
 
             // Log current fees (query hook)
-            uint24 feeAB = hook.getFee(address(0), poolKey, SwapParams({
-                zeroForOne: true,
-                amountSpecified: 1e18,
-                sqrtPriceLimitX96: 0
-            }), "");
-            uint24 feeBA = hook.getFee(address(0), poolKey, SwapParams({
-                zeroForOne: false,
-                amountSpecified: 1e18,
-                sqrtPriceLimitX96: 0
-            }), "");
-            
-            string memory logMessage = string(abi.encodePacked(
-            "Block ", vm.toString(block.number), 
-            " FeeAB: ", vm.toString(feeAB),
-            " FeeBA: ", vm.toString(feeBA)
-            ));
+            uint24 feeAB = hook.getFee(
+                address(0), poolKey, SwapParams({zeroForOne: true, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+            );
+            uint24 feeBA = hook.getFee(
+                address(0), poolKey, SwapParams({zeroForOne: false, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+            );
+
+            string memory logMessage = string(
+                abi.encodePacked(
+                    "Block ", vm.toString(block.number), " FeeAB: ", vm.toString(feeAB), " FeeBA: ", vm.toString(feeBA)
+                )
+            );
             console.log(logMessage);
         }
     }
 
     // Simple string splitting (by delimiter)
     function split(string memory str, string memory delim) internal pure returns (string[] memory) {
-        uint count = 1;
-        for (uint i = 0; i < bytes(str).length; i++) {
+        uint256 count = 1;
+        for (uint256 i = 0; i < bytes(str).length; i++) {
             if (bytes(str)[i] == bytes(delim)[0]) count++;
         }
         string[] memory parts = new string[](count);
-        uint partIndex = 0;
-        uint start = 0;
-        for (uint i = 0; i < bytes(str).length; i++) {
+        uint256 partIndex = 0;
+        uint256 start = 0;
+        for (uint256 i = 0; i < bytes(str).length; i++) {
             if (bytes(str)[i] == bytes(delim)[0]) {
                 parts[partIndex] = substring(str, start, i);
                 partIndex++;
@@ -219,10 +221,10 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         return parts;
     }
 
-    function substring(string memory str, uint start, uint end) internal pure returns (string memory) {
+    function substring(string memory str, uint256 start, uint256 end) internal pure returns (string memory) {
         bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(end - start);
-        for (uint i = start; i < end; i++) {
+        for (uint256 i = start; i < end; i++) {
             result[i - start] = strBytes[i];
         }
         return string(result);
@@ -233,8 +235,8 @@ contract DeployBAHookScript is BaseScript, LiquidityHelpers {
         bytes memory b = bytes(str);
         int256 result = 0;
         bool decimal = false;
-        uint decimals = 0;
-        for (uint i = 0; i < b.length; i++) {
+        uint256 decimals = 0;
+        for (uint256 i = 0; i < b.length; i++) {
             if (b[i] == ".") {
                 decimal = true;
             } else {

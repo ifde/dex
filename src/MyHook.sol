@@ -57,14 +57,10 @@ contract MyHook is BaseOverrideFee, Ownable {
         return fee;
     }
 
-        /**
+    /**
      * @dev Check that the pool key has a dynamic fee.
      */
-    function _afterInitialize(address, PoolKey calldata key, uint160, int24)
-        internal
-        override
-        returns (bytes4)
-    {
+    function _afterInitialize(address, PoolKey calldata key, uint160, int24) internal override returns (bytes4) {
         if (!key.fee.isDynamicFee()) revert NotDynamicFee();
         poolManager().updateDynamicLPFee(key, fee);
         return this.afterInitialize.selector;

@@ -42,7 +42,10 @@ contract BAHook is BaseOverrideFee, Ownable {
 
     IPoolManager private immutable _poolManager;
 
-    constructor(IPoolManager poolManager, AggregatorV2V3Interface ethUsdtFeed, AggregatorV2V3Interface shibUsdtFeed) BaseOverrideFee() Ownable(msg.sender) {
+    constructor(IPoolManager poolManager, AggregatorV2V3Interface ethUsdtFeed, AggregatorV2V3Interface shibUsdtFeed)
+        BaseOverrideFee()
+        Ownable(msg.sender)
+    {
         _poolManager = poolManager;
         _ethUsdtFeed = ethUsdtFeed;
         _shibUsdtFeed = shibUsdtFeed;
@@ -64,11 +67,7 @@ contract BAHook is BaseOverrideFee, Ownable {
     /**
      * @dev Initialize fees and price tracking for the pool.
      */
-    function _afterInitialize(address, PoolKey calldata key, uint160, int24)
-        internal
-        override
-        returns (bytes4)
-    {
+    function _afterInitialize(address, PoolKey calldata key, uint160, int24) internal override returns (bytes4) {
         PoolId poolId = key.toId();
         feeAB[poolId] = INITIAL_FEE;
         feeBA[poolId] = INITIAL_FEE;
@@ -90,11 +89,15 @@ contract BAHook is BaseOverrideFee, Ownable {
         return params.zeroForOne ? feeAB[poolId] : feeBA[poolId];
     }
 
-    function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data) public view returns (uint24) {
+    function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
+        public
+        view
+        returns (uint24)
+    {
         return _getFee(a, key, params, data);
     }
 
-     /**
+    /**
      * @notice Sets the initial fee, denominated in hundredths of a bip.
      */
     function setInitialFee(uint24 _fee) external onlyOwner {

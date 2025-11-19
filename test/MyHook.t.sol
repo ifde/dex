@@ -49,11 +49,10 @@ contract MyHookTest is BaseTest {
         // Deploy the hook to an address with the correct flags
         address flags = address(
             uint160(
-                Hooks.AFTER_INITIALIZE_FLAG |
-                Hooks.BEFORE_SWAP_FLAG // Dynamic fee hook only needs afterInitialize
-            ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
+                    Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG // Dynamic fee hook only needs afterInitialize
+                ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
-        
+
         bytes memory constructorArgs = abi.encode(poolManager);
         deployCodeTo("src/MyHook.sol:MyHook", constructorArgs, flags);
         hook = MyHook(flags);
@@ -62,7 +61,7 @@ contract MyHookTest is BaseTest {
         uint24 dynamicFee = 3000;
         poolKey = PoolKey(currency0, currency1, LPFeeLibrary.DYNAMIC_FEE_FLAG, 60, IHooks(hook));
         poolId = poolKey.toId();
-        
+
         // Set initial fee before pool initialization
         hook.setFee(500); // 5 bps = 0.05%
 
@@ -98,7 +97,7 @@ contract MyHookTest is BaseTest {
     function testDynamicFeeInitialization() public {
         // Verify that the pool was created with dynamic fee flag
         assertTrue(poolKey.fee.isDynamicFee(), "Pool should have dynamic fee enabled");
-        
+
         // The fee should be set to our initial value (500 = 0.05%)
         // Note: You might need to add a getter function to your hook to verify this
     }
@@ -119,7 +118,7 @@ contract MyHookTest is BaseTest {
         // Update the fee to a higher value
         uint24 newFee = 2000; // 20 bps = 0.2%
         hook.setFee(newFee);
-        
+
         // The hook should call _poke to update the fee in the pool
         // Note: You might need to add a public poke function to your hook for testing
         // hook.poke(poolKey);
@@ -150,7 +149,7 @@ contract MyHookTest is BaseTest {
     function testPoolRejectsNonDynamicFee() public {
         // Try to create a pool with static fee but dynamic fee hook
         PoolKey memory invalidPoolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(hook)); // Static fee 3000
-        
+
         vm.expectRevert(); // Should revert with NotDynamicFee error
         poolManager.initialize(invalidPoolKey, Constants.SQRT_PRICE_1_1);
     }

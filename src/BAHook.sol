@@ -11,52 +11,51 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/type
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 
-// Chainlink AggregatorV3Interface
-interface AggregatorV3Interface {
-    function latestRoundData()
-        external
-        view
-        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
-}
+import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
+
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev A hook implementing Block Adaptive (BA) dynamic fees using external CEX prices.
  * - Uses ETH/USDT and SHIB/USDT price feeds to compute ETH/SHIB ratio.
  * - Adjusts fees based on ratio changes per block.
  */
-contract BAHook is BaseOverrideFee {
+contract BAHook is BaseOverrideFee, Ownable {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using LPFeeLibrary for uint24;
 
     // Constants
-    uint24 private constant INITIAL_FEE = 3000; // 30 bps
-    uint24 private constant FSTEP = 500; // 5 bps
-    uint24 private constant MAX_FEE = 10000; // Cap at 100 bps
+    uint24 private INITIAL_FEE = 3000; // 30 bps
+    uint24 private FSTEP = 500; // 5 bps
+    uint24 private MAX_FEE = 10000; // Cap at 100 bps
 
     // Price feeds
-    AggregatorV3Interface private immutable _ethUsdtFeed;
-    AggregatorV3Interface private immutable _shibUsdtFeed;
+    AggregatorV2V3Interface private immutable _ethUsdtFeed;
+    AggregatorV2V3Interface private immutable _shibUsdtFeed;
 
     // State per pool
     mapping(PoolId => uint24) public feeAB; // Fee for A → B (ETH → SHIB)
     mapping(PoolId => uint24) public feeBA; // Fee for B → A (SHIB → ETH)
-    mapping(PoolId => uint256) public lastPriceRatio; // Last ETH/SHIB ratio (scaled by 1e18)
+    mapping(PoolId => uint256) public lastPriceRatio; // Last ETH/SHIB ratio (scaled by 1e18 for precision)
     mapping(PoolId => uint256) public lastBlock;
 
     IPoolManager private immutable _poolManager;
 
-    constructor(IPoolManager poolManager, address ethUsdtFeed, address shibUsdtFeed) BaseOverrideFee() {
+    constructor(IPoolManager poolManager, AggregatorV2V3Interface ethUsdtFeed, AggregatorV2V3Interface shibUsdtFeed)
+        BaseOverrideFee()
+        Ownable(msg.sender)
+    {
         _poolManager = poolManager;
-        _ethUsdtFeed = AggregatorV3Interface(ethUsdtFeed);
-        _shibUsdtFeed = AggregatorV3Interface(shibUsdtFeed);
+        _ethUsdtFeed = ethUsdtFeed;
+        _shibUsdtFeed = shibUsdtFeed;
     }
 
     function poolManager() public view override returns (IPoolManager) {
         return _poolManager;
     }
 
-    // Helper to get current ETH/SHIB price ratio
+    // Helper to get current ETH/SHIB price ratio from feeds
     function _getPriceRatio() private view returns (uint256) {
         (, int256 ethPrice,,,) = _ethUsdtFeed.latestRoundData();
         (, int256 shibPrice,,,) = _shibUsdtFeed.latestRoundData();
@@ -91,11 +90,21 @@ contract BAHook is BaseOverrideFee {
     }
 
     function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
-        public
+        external
         view
         returns (uint24)
     {
         return _getFee(a, key, params, data);
+    }
+
+    /**
+     * @notice Sets the initial fee, denominated in hundredths of a bip.
+     */
+    function setFee(uint24 _fee, PoolKey calldata key) external onlyOwner {
+        PoolId poolId = key.toId();
+
+        feeAB[poolId] = _fee;
+        feeBA[poolId] = _fee;
     }
 
     /**
@@ -111,7 +120,7 @@ contract BAHook is BaseOverrideFee {
 
         if (block.number > lastBlock[poolId]) {
             if (currentRatio < lastPriceRatio[poolId]) {
-                // Ratio decreased: Increase feeAB, decrease feeBA
+                // Ratio decreased (ETH/SHIB fell): Increase feeAB, decrease feeBA
                 feeAB[poolId] = feeAB[poolId] + FSTEP > MAX_FEE ? MAX_FEE : feeAB[poolId] + FSTEP;
                 feeBA[poolId] = feeBA[poolId] > FSTEP ? feeBA[poolId] - FSTEP : 0;
             } else if (currentRatio > lastPriceRatio[poolId]) {

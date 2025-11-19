@@ -841,6 +841,46 @@ It gives price feed to the contract
 (at it is data that is outside of the blockchain)
 
 
+### Fixture functions
+
+```
+struct TestCase {
+    uint256 a;
+    uint256 b;
+    uint256 expected;
+}
+ 
+function fixtureSums() public returns (TestCase[] memory) {
+    TestCase[] memory entries = new TestCase[](2);
+    entries[0] = TestCase(1, 2, 3);
+    entries[1] = TestCase(4, 5, 9);
+    return entries;
+}
+ 
+function tableSumsTest(TestCase memory sums) public pure {
+    require(sums.a + sums.b == sums.expected, "wrong sum");
+}
+```
+
+`forge test` reads a function with a `fixture` prefix and a name `Sums`
+Then it builds the `sums` variabale which is `sums = fixtureSUms()`
+
+Then it reads a functions with a `table` prefix
+It understands that it its input it should have one of the variables with testcases
+It sees the parameter `sums` - remembers it has such a variable - so it runs this function for every element in the `sums` array
+
+### Storage and memory 
+
+`storage` - variables defined in the contracts that affect the state of the blockchain
+
+`memory` - variables in functions that exist only when this function is executing 
+
+You can create `strorage` variables within functions - it means this varible is a reference to a contract variable 
+(so will be changing it)
+
+If you assign a `memory` variable to a `storage` variable within the function, it will create a copy of this variable from the contract
+
+
 
 
 
