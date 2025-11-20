@@ -16,7 +16,8 @@ import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interface
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @dev A hook implementing Block Adaptive (BA) dynamic fees using external CEX prices.
+ * @title Block-Adaptive Hook
+ * @notice A hook implementing Block Adaptive (BA) dynamic fees using external CEX prices.
  * - Uses ETH/USDT and SHIB/USDT price feeds to compute ETH/SHIB ratio.
  * - Adjusts fees based on ratio changes per block.
  */

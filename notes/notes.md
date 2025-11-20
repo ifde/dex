@@ -806,20 +806,6 @@ contractBAddress.call(payload);
 IL (Impermanent Loss) occurs when liquidity providers (LPs) see a reduction in asset value
 within a liquidity pool compared to holding them outside, especially in volatile markets, diminishing their incentive to provide liquidity.
 
-### Types of dynamic Fees
-
-![alt text](image-3.png)
-
-1. Block-adaptive 
-Idea: if A becomes less desirable (price A / price B decreases), then traders will likely want to get more of token B
-That means that the volume A -> B increases
-We want to reflect that by increasing a fee in the A -> B direction: 
-F_ab = F_ab + F_step
-
-F_step = 5 bps (1 bps = 1 basic point = 1 / 100 %)
-
-F_initial = 30 bps
-
 
 ### Binance API endpoints 
 
@@ -879,6 +865,15 @@ You can create `strorage` variables within functions - it means this varible is 
 (so will be changing it)
 
 If you assign a `memory` variable to a `storage` variable within the function, it will create a copy of this variable from the contract
+
+
+### BalanceDelta
+
+BalanceDelta - this is the delta that liduidity operations return 
+
+It is used by the BaseHook contract that automatically resolves the deltas 
+
+The link is here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
 
 
 
