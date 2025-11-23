@@ -204,7 +204,7 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
     }
 
     function setFee(uint24 _fee, PoolKey calldata key) external onlyOwner {
-
+        fixedLpFee = Math.ceilDiv(_fee, 100);
     }
 
     // ----------------------------- Inspectors --------------------------------------
@@ -365,11 +365,11 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
         return fee;
     }
 
-    function getFee(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata hookData)
+    function getFee(address caller, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
         external
         returns (uint24)
     {
-        return _getFee(sender, key, params, hookData);
+        return _getFee(caller, key, params, data);
     }
 
     // ----------------------------- Fee Math ----------------------------------------

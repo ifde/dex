@@ -90,11 +90,11 @@ contract BAHook is BaseOverrideFee, Ownable {
         return params.zeroForOne ? feeAB[poolId] : feeBA[poolId];
     }
 
-    function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
+    function getFee(address caller, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
         external
         returns (uint24)
     {
-        return _getFee(a, key, params, data);
+        return _getFee(caller, key, params, data);
     }
 
     /**

@@ -51,7 +51,8 @@ contract BaseHookTest is Test, HookTest {
 
     string[] public fixtureHookNames = HookConstants.getHookNames();
 
-    function tableHooksTest(bytes memory hookNames) public {
+    function tableHooksTest(string memory hookNames) public {
+        console.log(hookNames);
         deployHookAndFeeds(hookNames);
 
         deployPool();

@@ -10,9 +10,13 @@ forge script script/BAHookNew.s.sol \
 ```
 
 `running a deploy Hook Script`
-`params: <FeedAddress0, FeedAddress1>`
+`params: <HookName, FeedAddress0, FeedAddress1>`
 ```
 forge script script/DeployHook.s.sol BAHook 0 0 --rpc-url http://localhost:8545 --broadcast
+```
+
+```
+forge script script/DeployHook.s.sol MEVChargeHook 0 0 --rpc-url http://localhost:8545 --broadcast
 ```
 
 `running a deploy Hook and Create Pool Script`

@@ -71,13 +71,9 @@ contract HookTest is BaseTest {
 
         // The hook address
         if (keccak256(bytes(hookName)) == keccak256(bytes("BAHook"))) {
-            flags = address(
-                HookFlags.BA_HOOK_FLAGS
-            );
+            flags = address(HookFlags.BA_HOOK_FLAGS);
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("MEVChargeHook"))) {
-            flags = address(
-                HookFlags.MEV_CHARGE_HOOK_FLAGS
-            );
+            flags = address(HookFlags.MEV_CHARGE_HOOK_FLAGS);
         }
 
         console.log("Flag address: ", vm.toString(flags));
