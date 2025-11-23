@@ -21,7 +21,13 @@ forge script script/DeployHook.s.sol BAHook 0 0 --rpc-url http://localhost:8545 
 forge script script/deployHookAndCreatePool.s.sol BAHook 0 0 0 0 --rpc-url http://localhost:8545 --broadcast
 ```
 
+`Usual testing`
 ```
-forge test -vvv --match-path test/BAHookNew.t.sol
+forge test -vvvv --match-path test/testHook.t.sol
+```
+
+Test specific for `MEVChargeHook`
+```
+forge test -vvvv --match-path test/MEVChargeHookFees.t.sol --match-test test_NormalPurchase
 ```
 

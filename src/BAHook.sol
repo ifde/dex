@@ -92,7 +92,6 @@ contract BAHook is BaseOverrideFee, Ownable {
 
     function getFee(address a, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
         external
-        view
         returns (uint24)
     {
         return _getFee(a, key, params, data);

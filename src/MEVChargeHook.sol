@@ -28,20 +28,22 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {BalanceDelta, BalanceDeltaLibrary, toBalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 
+import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
+
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title MEVChargeHook
-/// @notice Uniswap v4 hook that enforces 
+/// @notice Uniswap v4 hook that enforces
 /// dynamic MEV-aware fees with cooldowns and LP donations.
 contract MEVChargeHook is BaseOverrideFee, Ownable {
     using StateLibrary for IPoolManager;
     using SafeERC20 for IERC20;
 
     uint256 private constant MALICIOUS_FEE_MAX_DEFAULT = 2500; // 25%
-    uint256 private constant FIXED_LP_FEE_DEFAULT = 100; // 1.00%
+    uint256 private constant FIXED_LP_FEE_DEFAULT = 30; // 0.3%
     uint256 private constant MAX_COOLDOWN_SECONDS = 600;
     uint256 private constant FEE_DENOMINATOR = 10_000;
     uint8 private constant MAX_BLOCK_OFFSET = 3;
@@ -146,7 +148,10 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
 
     IPoolManager private immutable _poolManager;
 
-    constructor(IPoolManager poolManager, address _owner) BaseOverrideFee() Ownable(_owner) {
+    constructor(IPoolManager poolManager, AggregatorV2V3Interface a, AggregatorV2V3Interface b)
+        BaseOverrideFee()
+        Ownable(msg.sender)
+    {
         _poolManager = poolManager;
         if (address(_poolManager) == address(0)) revert InvalidPoolManagerAddress();
         _updateEffectiveFeeMax();
@@ -196,6 +201,10 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
     function setFlaggedFeeAdditional(uint16 newValue) external onlyOwner {
         if (fixedLpFee + newValue > effectiveFeeMax) revert FeeMaxTooHigh();
         config.flaggedFeeAdditional = newValue;
+    }
+
+    function setFee(uint24 _fee, PoolKey calldata key) external onlyOwner {
+
     }
 
     // ----------------------------- Inspectors --------------------------------------
@@ -298,9 +307,11 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
         return (donated, deltaSender);
     }
 
-    function _donate(PoolKey calldata key, uint256 donation0, uint256 donation1) private returns (BalanceDelta deltaHook) {
-
-      try _poolManager.donate(key, donation0, donation1, "") returns (BalanceDelta returnedDelta) {
+    function _donate(PoolKey calldata key, uint256 donation0, uint256 donation1)
+        private
+        returns (BalanceDelta deltaHook)
+    {
+        try _poolManager.donate(key, donation0, donation1, "") returns (BalanceDelta returnedDelta) {
             deltaHook = returnedDelta;
         } catch {
             revert DonationFailed();
@@ -314,7 +325,7 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
         BalanceDelta,
         BalanceDelta feeDelta,
         bytes calldata
-    ) internal virtual override  returns (bytes4, BalanceDelta) {
+    ) internal virtual override returns (bytes4, BalanceDelta) {
         _updateUserActivityTimestamp(sender);
         bytes32 positionKey = Position.calculatePositionKey(sender, params.tickLower, params.tickUpper, params.salt);
         emit LiquidityRemoved(sender, key.toId(), positionKey);
@@ -352,6 +363,13 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
         // forge-lint: disable-next-line(unsafe-typecast)
         fee = uint24(candidateBps * 100);
         return fee;
+    }
+
+    function getFee(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata hookData)
+        external
+        returns (uint24)
+    {
+        return _getFee(sender, key, params, hookData);
     }
 
     // ----------------------------- Fee Math ----------------------------------------

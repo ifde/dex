@@ -18,7 +18,6 @@ import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {BAHook} from "../src/BAHookNew.sol";
 
 import {MockV3Aggregator} from "@chainlink/local/src/data-feeds/MockV3Aggregator.sol";
 import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
@@ -37,6 +36,8 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
+import {HookConstants} from "./utils/libraries/HookConstants.sol";
+
 import {MockV3Aggregator} from "@chainlink/local/src/data-feeds/MockV3Aggregator.sol";
 import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
 
@@ -48,9 +49,9 @@ contract BaseHookTest is Test, HookTest {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
 
-    string[] public fixtureHookNames = ["BAHook"];
+    string[] public fixtureHookNames = HookConstants.getHookNames();
 
-    function tableHooksTest(string memory hookNames) public {
+    function tableHooksTest(bytes memory hookNames) public {
         deployHookAndFeeds(hookNames);
 
         deployPool();
@@ -66,27 +67,18 @@ contract BaseHookTest is Test, HookTest {
 
     // Read and simulate market data
     function _testMarketData() public {
-
         hookContract.setFee(3001, poolKey);
 
-        uint24 feeAB = hookContract.getFee(address(0), poolKey, SwapParams({
-            zeroForOne: true,
-            amountSpecified: 1e18,
-            sqrtPriceLimitX96: 0
-        }), "");
-        uint24 feeBA = hookContract.getFee(address(0), poolKey, SwapParams({
-            zeroForOne: false,
-            amountSpecified: 1e18,
-            sqrtPriceLimitX96: 0
-        }), "");
+        uint24 feeAB = hookContract.getFee(
+            address(0), poolKey, SwapParams({zeroForOne: true, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+        );
+        uint24 feeBA = hookContract.getFee(
+            address(0), poolKey, SwapParams({zeroForOne: false, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+        );
 
-        console.log(string(abi.encodePacked(
-            "Initial Fees |",
-            " FeeAB: ",
-            vm.toString(feeAB),
-            " FeeBA: ",
-            vm.toString(feeBA)
-        )));
+        console.log(
+            string(abi.encodePacked("Initial Fees |", " FeeAB: ", vm.toString(feeAB), " FeeBA: ", vm.toString(feeBA)))
+        );
 
         // Simulation parameters
         uint256 puu = 100; // Probability for uninformed users (10% = 100/1000)
@@ -117,9 +109,9 @@ contract BaseHookTest is Test, HookTest {
 
         uint256 initialBlock = block.number;
 
-        for (uint i = 0; i < ethLines.length; i++) {
+        for (uint256 i = 0; i < ethLines.length; i++) {
             if (bytes(ethLines[i]).length == 0) {
-              break;
+                break;
             }
 
             // Parse ETH close price (5th field, 0-indexed)
@@ -149,22 +141,18 @@ contract BaseHookTest is Test, HookTest {
             });
 
             // Log current fees (query hook)
-            uint24 feeAB = hookContract.getFee(address(0), poolKey, SwapParams({
-                zeroForOne: true,
-                amountSpecified: 1e18,
-                sqrtPriceLimitX96: 0
-            }), "");
-            uint24 feeBA = hookContract.getFee(address(0), poolKey, SwapParams({
-                zeroForOne: false,
-                amountSpecified: 1e18,
-                sqrtPriceLimitX96: 0
-            }), "");
-            
-            string memory logMessage = string(abi.encodePacked(
-            "Block ", vm.toString(block.number), 
-            " FeeAB: ", vm.toString(feeAB),
-            " FeeBA: ", vm.toString(feeBA)
-            ));
+            uint24 feeAB = hookContract.getFee(
+                address(0), poolKey, SwapParams({zeroForOne: true, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+            );
+            uint24 feeBA = hookContract.getFee(
+                address(0), poolKey, SwapParams({zeroForOne: false, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
+            );
+
+            string memory logMessage = string(
+                abi.encodePacked(
+                    "Block ", vm.toString(block.number), " FeeAB: ", vm.toString(feeAB), " FeeBA: ", vm.toString(feeBA)
+                )
+            );
             console.log(logMessage);
         }
     }
@@ -183,14 +171,14 @@ contract BaseHookTest is Test, HookTest {
 
     // Simple string splitting (by delimiter)
     function split(string memory str, string memory delim) internal pure returns (string[] memory) {
-        uint count = 1;
-        for (uint i = 0; i < bytes(str).length; i++) {
+        uint256 count = 1;
+        for (uint256 i = 0; i < bytes(str).length; i++) {
             if (bytes(str)[i] == bytes(delim)[0]) count++;
         }
         string[] memory parts = new string[](count);
-        uint partIndex = 0;
-        uint start = 0;
-        for (uint i = 0; i < bytes(str).length; i++) {
+        uint256 partIndex = 0;
+        uint256 start = 0;
+        for (uint256 i = 0; i < bytes(str).length; i++) {
             if (bytes(str)[i] == bytes(delim)[0]) {
                 parts[partIndex] = substring(str, start, i);
                 partIndex++;
@@ -201,10 +189,10 @@ contract BaseHookTest is Test, HookTest {
         return parts;
     }
 
-    function substring(string memory str, uint start, uint end) internal pure returns (string memory) {
+    function substring(string memory str, uint256 start, uint256 end) internal pure returns (string memory) {
         bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(end - start);
-        for (uint i = start; i < end; i++) {
+        for (uint256 i = start; i < end; i++) {
             result[i - start] = strBytes[i];
         }
         return string(result);
@@ -215,8 +203,8 @@ contract BaseHookTest is Test, HookTest {
         bytes memory b = bytes(str);
         int256 result = 0;
         bool decimal = false;
-        uint decimals = 0;
-        for (uint i = 0; i < b.length; i++) {
+        uint256 decimals = 0;
+        for (uint256 i = 0; i < b.length; i++) {
             if (b[i] == ".") {
                 decimal = true;
             } else {

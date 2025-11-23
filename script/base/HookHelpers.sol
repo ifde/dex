@@ -7,12 +7,16 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
+import {HookFlags} from "./../../test/utils/libraries/HookFlags.sol";
+
 import {MockV3Aggregator} from "@chainlink/local/src/data-feeds/MockV3Aggregator.sol";
 import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
 
 import {BaseScript} from "./BaseScript.sol";
 
 import {BAHook} from "../../src/BAHookNew.sol";
+
+import {MEVChargeHook} from "../../src/MEVChargeHook.sol";
 
 contract HookHelpers is BaseScript {
     AggregatorV2V3Interface priceFeed0;
@@ -37,12 +41,10 @@ contract HookHelpers is BaseScript {
 
         bytes memory constructorArgs = abi.encode(poolManager, priceFeed0, priceFeed1);
 
-        uint160 flags =
-            uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144);
-
         vm.startBroadcast();
 
         if (keccak256(bytes(hookName)) == keccak256(bytes("BAHook"))) {
+            uint160 flags = HookFlags.BA_HOOK_FLAGS;
             (address hookAddress, bytes32 salt) =
                 HookMiner.find(CREATE2_FACTORY, flags, type(BAHook).creationCode, constructorArgs);
 
@@ -53,8 +55,18 @@ contract HookHelpers is BaseScript {
             require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
 
             console.log("BAHook deployed at:", address(hookContract));
-        } else if (keccak256(bytes(hookName)) == keccak256(bytes("ContractB"))) {} else {
-            console.log("Invalid contract name provided.");
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("MEVChargeHook"))) {
+            uint160 flags = HookFlags.MEV_CHARGE_HOOK_FLAGS;
+            (address hookAddress, bytes32 salt) =
+                HookMiner.find(CREATE2_FACTORY, flags, type(MEVChargeHook).creationCode, constructorArgs);
+
+            hookContract = new MEVChargeHook{salt: salt}(
+                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
+            );
+
+            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
+
+            console.log("BAHook deployed at:", address(hookContract));
         }
 
         vm.stopBroadcast();

@@ -876,6 +876,45 @@ It is used by the BaseHook contract that automatically resolves the deltas
 The link is here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
 
 
+### Units
+
+1. All the tokens amounts are represented as 
+
+Formula: `amount * 10^18` (this would be 1 ETH, for examaple)
+
+(UniswapV4 assumes all tokens have 18 decimal points)
+
+The liquidity amounts are represented the same way
+
+2. Prices 
+
+Q64.96 format 
+
+64 digits - integer part
+
+96 digits - fractional part
+
+uint160
+
+Formula: `price * 2 ^ 96`
+
+3. Fee amounts:
+
+Measured in pips 
+
+1 pip = 1/ 10_000 %
+
+uint24
+
+Formula: `fee * 10_000`
+
+
+
+
+
+
+
+
 
 
 
