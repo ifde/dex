@@ -706,6 +706,8 @@ Basic private key
 Note: `forge test` creates its own internal network 
 (so that's even a little bit better)
 
+`forge test --match-path test/BAHook.t.sol`
+
 `--broadcast` means that the transactions that are marked as `vm.broadcast()` will be executed from your acount
 
 -------
@@ -728,6 +730,288 @@ When forge sees
 
 It actually looks up the file following this path 
 The root here is the actual file where this line is
+
+---------
+
+### PoolId and TokenId
+
+`PoolId poolId = poolKey.toId()`
+
+Pool key is a struct that uniquly identifies the pool
+
+`toId()` function turns this struct into a unique hash
+
+`tokenId` - is a hash that uniquely identifies your LP position
+
+-------
+
+### Fees 
+
+Fees are measured in pips 
+
+1 pip = 1 / 1,000,000  = 1 / 10,000 %
+
+10,000 pip = 1 %
+
+Note: 
+
+1 bip (basic point) = 1 / 10,000 = 1 / 100 %
+
+### Swaps with Fees
+
+```
+assertApproxEqAbs(
+    uint256(int256(swapDelta.amount1())),
+    uint256(-amountSpecified).mulWadDown(1e18 - hook.HOOK_FEE()),
+    0.0001e18
+);
+```
+
+`swapDelta` struct has the changes of the currencies for the pool:
+
+```
+struct BalanceDelta {
+    int128 amount0;  // Net change in token0 for the POOL
+    int128 amount1;  // Net change in token1 for the POOL
+}
+```
+
+`uint256(int256(swapDelta.amount1()))` here, token1 was withdrawn from the pool, so the `swapDelta.amount1()` is less than zero 
+
+`uint()` - this converts in to a positive number
+
+------
+
+### Calldata
+
+`calldata` - a keyword that says the variable passed to the function is not modifiable.
+Essentially, it is a pointer. 
+To pass a value as a call data, you can use a low-level call:
+
+```
+bytes memory payload = abi.encodeWithSelector(
+    IContractB.processData.selector, // The function identifier
+    valuesToPass,
+    categoryToPass,
+    extraDataToPass
+);
+// 'payload' is now a bytes variable in memory containing the full ABI-encoded calldata
+
+// Perform the low-level external call
+contractBAddress.call(payload);
+```
+
+### Impremanent Loss (IL)
+
+IL (Impermanent Loss) occurs when liquidity providers (LPs) see a reduction in asset value
+within a liquidity pool compared to holding them outside, especially in volatile markets, diminishing their incentive to provide liquidity.
+
+
+### Binance API endpoints 
+
+https://github.com/binance/binance-public-data/
+
+https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#klinecandlestick-data
+
+https://data.binance.vision/?prefix=
+
+They have a KLines data (data from candle sticks)
+
+You can use API calls to get it
+
+### Aggregator 
+
+https://docs.chain.link/chainlink-local/api-reference/v0.2.3/mock-v3-aggregator
+
+It gives price feed to the contract 
+(at it is data that is outside of the blockchain)
+
+
+### Fixture functions
+
+```
+struct TestCase {
+    uint256 a;
+    uint256 b;
+    uint256 expected;
+}
+ 
+function fixtureSums() public returns (TestCase[] memory) {
+    TestCase[] memory entries = new TestCase[](2);
+    entries[0] = TestCase(1, 2, 3);
+    entries[1] = TestCase(4, 5, 9);
+    return entries;
+}
+ 
+function tableSumsTest(TestCase memory sums) public pure {
+    require(sums.a + sums.b == sums.expected, "wrong sum");
+}
+```
+
+`forge test` reads a function with a `fixture` prefix and a name `Sums`
+Then it builds the `sums` variabale which is `sums = fixtureSUms()`
+
+Then it reads a functions with a `table` prefix
+It understands that it its input it should have one of the variables with testcases
+It sees the parameter `sums` - remembers it has such a variable - so it runs this function for every element in the `sums` array
+
+### Storage and memory 
+
+`storage` - variables defined in the contracts that affect the state of the blockchain
+
+`memory` - variables in functions that exist only when this function is executing 
+
+You can create `strorage` variables within functions - it means this varible is a reference to a contract variable 
+(so will be changing it)
+
+If you assign a `memory` variable to a `storage` variable within the function, it will create a copy of this variable from the contract
+
+
+### BalanceDelta
+
+BalanceDelta - this is the delta that liduidity operations return 
+
+It is used by the BaseHook contract that automatically resolves the deltas 
+
+The link is here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
+
+
+### Units
+
+1. All the tokens amounts are represented as 
+
+Formula: `amount * 10^18` (this would be 1 ETH, for examaple)
+
+(UniswapV4 assumes all tokens have 18 decimal points)
+
+The liquidity amounts are represented the same way
+
+2. Prices 
+
+Q64.96 format 
+
+64 digits - integer part
+
+96 digits - fractional part
+
+uint160
+
+Formula: `price * 2 ^ 96`
+
+3. Fee amounts:
+
+Measured in pips 
+
+1 pip = 1/ 10_000 %
+
+uint24
+
+Formula: `fee * 10_000`
+
+### Yul (Solidity assembly language)
+
+`mstore(0, and(target, 0xff...))`
+
+and - bitwise operation &
+mstore - stores the result starting at address 0 (0 bytes offset)
+
+`mstore(32, ...)` - 32 bytes offset from the original address (not bits!)
+
+`keccak256(0, 64)`
+
+Calculate the keccack256 function from 0 to 64 bytes in the memory
+
+`assembly("memory-safe") {}` - this tells the compiler that the code inside is safe so it doesn't disable the optimizations
+
+`shl()` - shift human left
+
+### Settling pairs 
+
+When you use PoolManager's operations like `modifyLiquidity()`, `swap()`, `donate()` - you create deltas 
+
+Delta = (token0Amount, token1Amount)
+
+token0Amount - posivite if a manager owes tokens to the user, or otherwise
+
+token1Amount - the same thing
+
+Then you settle these deltas that have been stacked. 
+
+For that, the following operations are used
+
+1. `settle` - after you manually transfer the ERC20 token to the manager (because you owe it)
+This tells the manager to resolve a delta assosiated with this token
+
+```
+poolManager.sync(currency);    // Sync currency balance first
+IERC20Minimal(Currency.unwrap(currency)).transfer(
+    address(poolManager), 
+    amount
+);
+poolManager.settle();          // Complete the settlement
+```
+
+See here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
+
+2. `take` - the manager transefs ERC20 tokens to you (because it owes you)
+And resolves the associated delta
+
+If you take more that is owed to you, it will transfer what you request plus create another delta (where you owe the manager)
+
+Note: I think it transfers everything at the end of the transaction to prevent being deprived of the ERC20 tokens
+
+3. `mint`
+
+Uses ERC-6909
+
+Equivalent of `settle` (for resolving negative deltas)
+
+The difference is that it is cheaper (no external call to an ERC-20 contract). So the manager resolves the delta as if it as a ERC-20 transfer
+
+Then at the end of the transaction it just looks at your balace of ERC-6909 and understand how many real ERC-20 tokens should be transferred
+
+4. `burn`
+
+Uses ERC-6909
+
+Equivalent of `take` (for resolving positive deltas)
+
+5. `clear`
+
+Make the positive token deltas zero 
+
+Used to forfeit insignificant token amounts to avoid paying transaction costs
+
+Note: see the `IPoolManager` interface here:
+
+"@uniswap/v4-core/src/interfaces/IPoolManager.sol"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

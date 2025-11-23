@@ -2,7 +2,9 @@
 pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -22,13 +24,13 @@ contract BaseScript is Script, Deployers {
     /////////////////////////////////////
     // --- Configure These ---
     /////////////////////////////////////
-    IERC20 internal constant token0 = IERC20(0x0165878A594ca255338adfa4d48449f69242Eb8F);
-    IERC20 internal constant token1 = IERC20(0xa513E6E4b8f2a923D98304ec87F64353C4D5C853);
-    IHooks constant hookContract = IHooks(address(0));
+    IERC20 internal token0 = IERC20(0x0165878A594ca255338adfa4d48449f69242Eb8F);
+    IERC20 internal token1 = IERC20(0xa513E6E4b8f2a923D98304ec87F64353C4D5C853);
+    IHooks hookContract = IHooks(address(0));
     /////////////////////////////////////
 
-    Currency immutable currency0;
-    Currency immutable currency1;
+    Currency currency0;
+    Currency currency1;
 
     constructor() {
         // Make sure artifacts are available, either deploy or configure.
@@ -36,6 +38,7 @@ contract BaseScript is Script, Deployers {
 
         deployerAddress = getDeployer();
 
+        deployCurrencies();
         (currency0, currency1) = getCurrencies();
 
         vm.label(address(permit2), "Permit2");
@@ -57,7 +60,7 @@ contract BaseScript is Script, Deployers {
         }
     }
 
-    function getCurrencies() internal pure returns (Currency, Currency) {
+    function getCurrencies() internal returns (Currency, Currency) {
         require(address(token0) != address(token1));
 
         if (token0 < token1) {
@@ -75,5 +78,16 @@ contract BaseScript is Script, Deployers {
         } else {
             return msg.sender;
         }
+    }
+
+    function deployCurrencies() internal {
+        MockERC20 mockToken0 = new MockERC20("Test Token A", "A", 18);
+        MockERC20 mockToken1 = new MockERC20("Test Token B", "B", 18);
+
+        mockToken0.mint(address(deployerAddress), 10_000_000 ether);
+        mockToken1.mint(address(deployerAddress), 10_000_000 ether);
+
+        token0 = IERC20(address(mockToken0));
+        token1 = IERC20(address(mockToken1));
     }
 }

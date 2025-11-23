@@ -17,6 +17,8 @@ import {V4PoolManagerDeployer} from "hookmate/artifacts/V4PoolManager.sol";
 import {V4PositionManagerDeployer} from "hookmate/artifacts/V4PositionManager.sol";
 import {V4RouterDeployer} from "hookmate/artifacts/V4Router.sol";
 
+import {PoolDonateTest} from "./PoolDonateTest.sol";
+
 /**
  * Base Deployer Contract for Hook Testing
  *
@@ -34,12 +36,15 @@ abstract contract Deployers {
     IPositionManager positionManager;
     IUniswapV4Router04 swapRouter;
 
+    PoolDonateTest donateRouter; // Just for local testing
+
     function deployToken() internal returns (MockERC20 token) {
         token = new MockERC20("Test Token", "TEST", 18);
         token.mint(address(this), 10_000_000 ether);
 
         token.approve(address(permit2), type(uint256).max);
         token.approve(address(swapRouter), type(uint256).max);
+        token.approve(address(donateRouter), type(uint256).max);
 
         permit2.approve(address(token), address(positionManager), type(uint160).max, type(uint48).max);
         permit2.approve(address(token), address(poolManager), type(uint160).max, type(uint48).max);
@@ -94,6 +99,13 @@ abstract contract Deployers {
             swapRouter = IUniswapV4Router04(payable(V4RouterDeployer.deploy(address(poolManager), address(permit2))));
         } else {
             swapRouter = IUniswapV4Router04(payable(AddressConstants.getV4SwapRouterAddress(block.chainid)));
+        }
+    }
+
+    // Now used only for the MEVChargeHook test
+    function deployPoolDonateTest() internal virtual {
+        if (block.chainid == 31337) {
+            donateRouter = new PoolDonateTest(poolManager);
         }
     }
 
