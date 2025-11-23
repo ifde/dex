@@ -294,8 +294,12 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
                 BalanceDelta adjusted = toBalanceDelta(eff0, eff1);
 
                 BalanceDelta penalty = _calculateLiquidityPenalty(adjusted, poolId, positionKey);
-                uint256 donation0 = uint256(int256(penalty.amount0()));
-                uint256 donation1 = uint256(int256(penalty.amount1()));
+
+                // make sure donation amounts are non-negative before casting to uint
+                int256 p0 = int256(penalty.amount0());
+                int256 p1 = int256(penalty.amount1());
+                uint256 donation0 = p0 < 0 ? uint256(-p0) : uint256(p0);
+                uint256 donation1 = p1 < 0 ? uint256(-p1) : uint256(p1);
 
                 // donate to LPs proportional to active liquidity
                 BalanceDelta deltaHook = _donate(key, donation0, donation1);

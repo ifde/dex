@@ -908,6 +908,93 @@ uint24
 
 Formula: `fee * 10_000`
 
+### Yul (Solidity assembly language)
+
+`mstore(0, and(target, 0xff...))`
+
+and - bitwise operation &
+mstore - stores the result starting at address 0 (0 bytes offset)
+
+`mstore(32, ...)` - 32 bytes offset from the original address (not bits!)
+
+`keccak256(0, 64)`
+
+Calculate the keccack256 function from 0 to 64 bytes in the memory
+
+`assembly("memory-safe") {}` - this tells the compiler that the code inside is safe so it doesn't disable the optimizations
+
+`shl()` - shift human left
+
+### Settling pairs 
+
+When you use PoolManager's operations like `modifyLiquidity()`, `swap()`, `donate()` - you create deltas 
+
+Delta = (token0Amount, token1Amount)
+
+token0Amount - posivite if a manager owes tokens to the user, or otherwise
+
+token1Amount - the same thing
+
+Then you settle these deltas that have been stacked. 
+
+For that, the following operations are used
+
+1. `settle` - after you manually transfer the ERC20 token to the manager (because you owe it)
+This tells the manager to resolve a delta assosiated with this token
+
+```
+poolManager.sync(currency);    // Sync currency balance first
+IERC20Minimal(Currency.unwrap(currency)).transfer(
+    address(poolManager), 
+    amount
+);
+poolManager.settle();          // Complete the settlement
+```
+
+See here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
+
+2. `take` - the manager transefs ERC20 tokens to you (because it owes you)
+And resolves the associated delta
+
+If you take more that is owed to you, it will transfer what you request plus create another delta (where you owe the manager)
+
+Note: I think it transfers everything at the end of the transaction to prevent being deprived of the ERC20 tokens
+
+3. `mint`
+
+Uses ERC-6909
+
+Equivalent of `settle` (for resolving negative deltas)
+
+The difference is that it is cheaper (no external call to an ERC-20 contract). So the manager resolves the delta as if it as a ERC-20 transfer
+
+Then at the end of the transaction it just looks at your balace of ERC-6909 and understand how many real ERC-20 tokens should be transferred
+
+4. `burn`
+
+Uses ERC-6909
+
+Equivalent of `take` (for resolving positive deltas)
+
+5. `clear`
+
+Make the positive token deltas zero 
+
+Used to forfeit insignificant token amounts to avoid paying transaction costs
+
+Note: see the `IPoolManager` interface here:
+
+"@uniswap/v4-core/src/interfaces/IPoolManager.sol"
+
+
+
+
+
+
+
+
+
+
 
 
 
