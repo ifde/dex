@@ -15,8 +15,8 @@ import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interface
 import {BaseScript} from "./BaseScript.sol";
 
 import {BAHook} from "../../src/BAHookNew.sol";
-
 import {MEVChargeHook} from "../../src/MEVChargeHook.sol";
+import {PegStabilityHook} from "../../src/PegStabilityHook.sol";
 
 contract HookHelpers is BaseScript {
     AggregatorV2V3Interface priceFeed0;
@@ -66,8 +66,20 @@ contract HookHelpers is BaseScript {
 
             require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
 
-            console.log("BAHook deployed at:", address(hookContract));
-        }
+            console.log("MEVChargeHook deployed at:", address(hookContract));
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("PegStabilityHook"))) {
+            uint160 flags = HookFlags.PEG_STABILITY_HOOK_FLAGS;
+            (address hookAddress, bytes32 salt) =
+                HookMiner.find(CREATE2_FACTORY, flags, type(PegStabilityHook).creationCode, constructorArgs);
+
+            hookContract = new PegStabilityHook{salt: salt}(
+                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
+            );
+
+            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
+
+            console.log("PegStabilityHook deployed at:", address(hookContract));
+        } 
 
         vm.stopBroadcast();
     }

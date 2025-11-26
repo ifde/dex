@@ -74,7 +74,9 @@ contract HookTest is BaseTest {
             flags = address(HookFlags.BA_HOOK_FLAGS);
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("MEVChargeHook"))) {
             flags = address(HookFlags.MEV_CHARGE_HOOK_FLAGS);
-        }
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("PegStabilityHook"))) {
+            flags = address(HookFlags.PEG_STABILITY_HOOK_FLAGS);
+        } 
 
         console.log("Flag address: ", vm.toString(flags));
 
@@ -121,6 +123,8 @@ contract HookTest is BaseTest {
             token0Amount,
             token1Amount
         );
+
+        console.log("Liquidity added: ", liquidity);
 
         // slippage limits
         uint256 amount0Max = token0Amount + 1; // If at the time of the deposit this is higher, you won't mint

@@ -18,7 +18,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title Block-Adaptive Hook
  * @notice A hook implementing Block Adaptive (BA) dynamic fees using external CEX prices.
- * - Uses ETH/USDT and SHIB/USDT price feeds to compute ETH/SHIB ratio.
+ * - Uses token0/USDT and token1/USDT price feeds to compute token0/token1 ratio.
  * - Adjusts fees based on ratio changes per block.
  */
 contract BAHook is BaseOverrideFee, Ownable {
@@ -32,8 +32,8 @@ contract BAHook is BaseOverrideFee, Ownable {
     uint24 private MAX_FEE = 10000; // Cap at 100 bps
 
     // Price feeds
-    AggregatorV2V3Interface private immutable _ethUsdtFeed;
-    AggregatorV2V3Interface private immutable _shibUsdtFeed;
+    AggregatorV2V3Interface private immutable _token0UsdtFeed;
+    AggregatorV2V3Interface private immutable _token1UsdtFeed;
 
     // State per pool
     mapping(PoolId => uint24) public feeAB; // Fee for A → B (ETH → SHIB)
@@ -48,21 +48,21 @@ contract BAHook is BaseOverrideFee, Ownable {
         Ownable(msg.sender)
     {
         _poolManager = poolManager;
-        _ethUsdtFeed = ethUsdtFeed;
-        _shibUsdtFeed = shibUsdtFeed;
+        _token0UsdtFeed = ethUsdtFeed;
+        _token0UsdtFeed = shibUsdtFeed;
     }
 
     function poolManager() public view override returns (IPoolManager) {
         return _poolManager;
     }
 
-    // Helper to get current ETH/SHIB price ratio from feeds
+    // Helper to get current token0/token1 price ratio from feeds
     function _getPriceRatio() private view returns (uint256) {
-        (, int256 ethPrice,,,) = _ethUsdtFeed.latestRoundData();
-        (, int256 shibPrice,,,) = _shibUsdtFeed.latestRoundData();
-        require(ethPrice > 0 && shibPrice > 0, "Invalid price data");
-        // Ratio = (ETH/USD) / (SHIB/USD), scaled by 1e18 for precision
-        return uint256(ethPrice) * 1e18 / uint256(shibPrice);
+        (, int256 token0Price,,,) = _token0UsdtFeed.latestRoundData();
+        (, int256 token1Price,,,) = _token0UsdtFeed.latestRoundData();
+        require(token0Price > 0 && token1Price > 0, "Invalid price data");
+        // Ratio = (token0/USD) / (token1/USD), scaled by 1e18 for precision
+        return uint256(token0Price) * 1e18 / uint256(token1Price);
     }
 
     /**

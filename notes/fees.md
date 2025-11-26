@@ -40,6 +40,14 @@ impactFee = tradeAmount / totalLiquidity
 
 Total fee = max(TradingFee, impactFee)
 
+3. PegStability Hook
+A hook to keep DEX price B above CEX price B (pegging token B)
+
+Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
+Then we stimulate swaps by keeping the minimum fee
+
+On the other hand, Fee = percentage difference between Pool Price and CEX Price
+
 
 
 

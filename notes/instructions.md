@@ -19,6 +19,10 @@ forge script script/DeployHook.s.sol BAHook 0 0 --rpc-url http://localhost:8545 
 forge script script/DeployHook.s.sol MEVChargeHook 0 0 --rpc-url http://localhost:8545 --broadcast
 ```
 
+```
+forge script script/DeployHook.s.sol PegStabilityHook 0 0 --rpc-url http://localhost:8545 --broadcast
+```
+
 `running a deploy Hook and Create Pool Script`
 `params: <FeedAddress0, FeedAddress1, tokenAddress0, tokenAddress1>`
 ```
@@ -35,3 +39,7 @@ Test specific for `MEVChargeHook`
 forge test -vvvv --match-path test/MEVChargeHookFees.t.sol --match-test test_NormalPurchase
 ```
 
+Test specific for `PegStabilityHook`
+```
+forge test -vvvv --match-path test/PegStabilityHook.t.sol
+```
