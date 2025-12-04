@@ -29,13 +29,13 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// Then we stimulate swaps by keeping the minimum fee
 /// On the other hand, Fee = percentage difference between Pool Price and CEX Price
 contract PegStabilityHook is BaseOverrideFee, Ownable {
-  using StateLibrary for IPoolManager;
+    using StateLibrary for IPoolManager;
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
 
     IPoolManager private immutable _poolManager;
 
-        // Price feeds
+    // Price feeds
     AggregatorV2V3Interface private immutable _token0UsdtFeed;
     AggregatorV2V3Interface private immutable _token1UsdtFeed;
 
@@ -59,10 +59,11 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
     /// @dev Error when Invalid Currency in Pool
     error InvalidPoolCurrency();
 
-    constructor(IPoolManager poolManager, AggregatorV2V3Interface token0UsdtFeed, AggregatorV2V3Interface token1UsdtFeed)
-        BaseOverrideFee()
-        Ownable(msg.sender)
-    {
+    constructor(
+        IPoolManager poolManager,
+        AggregatorV2V3Interface token0UsdtFeed,
+        AggregatorV2V3Interface token1UsdtFeed
+    ) BaseOverrideFee() Ownable(msg.sender) {
         _poolManager = poolManager;
         _token0UsdtFeed = token0UsdtFeed;
         _token1UsdtFeed = token1UsdtFeed;
@@ -73,46 +74,38 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
     }
 
     function setExchangeRate(uint256 rate) external onlyOwner {
-      exchangeRate = rate;
+        exchangeRate = rate;
     }
 
     function setFee(uint24 _fee, PoolKey calldata key) external onlyOwner {
-      MAX_FEE_BPS = _fee;
+        MAX_FEE_BPS = _fee;
     }
 
     function setMinFee(uint24 _fee, PoolKey calldata key) external onlyOwner {
-      MIN_FEE_BPS = _fee;
+        MIN_FEE_BPS = _fee;
     }
 
-            function getFee(address caller, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
+    function getFee(address caller, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
         external
         returns (uint24)
     {
         return _getFee(caller, key, params, data);
     }
 
-
-
-        function _getFee(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _getFee(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         virtual
         override
         returns (uint24)
     {
         (uint160 sqrtPriceX96,,,) = _poolManager.getSlot0(key.toId());
-        return _calculateFee(
-            key.currency0,
-            key.currency1,
-            params.zeroForOne,
-            sqrtPriceX96,
-            _getSqrtPriceRatioX96()
-        );
+        return _calculateFee(key.currency0, key.currency1, params.zeroForOne, sqrtPriceX96, _getSqrtPriceRatioX96());
     }
 
     // Helper to get current token0/token1 price ratio from feeds
     function _getSqrtPriceRatioX96() private view returns (uint160) {
         if (exchangeRate != 0) {
-          return uint160(FixedPointMathLib.sqrt(exchangeRate) * (2 ** 96) / 1e9);
+            return uint160(FixedPointMathLib.sqrt(exchangeRate) * (2 ** 96) / 1e9);
         }
 
         (, int256 token0Price,,,) = _token0UsdtFeed.latestRoundData();
@@ -148,17 +141,15 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
     ) internal view returns (uint24) {
         // Pool price of token B is greater than CEX price of token B (which is the same is DEX price A < CEX price A)
         // OR we buy token B so its price increases
-        if (zeroForOne || poolSqrtPriceX96 < referenceSqrtPriceX96)
+        if (zeroForOne || poolSqrtPriceX96 < referenceSqrtPriceX96) {
             return MIN_FEE_BPS; // minFee bip
+        }
 
         // computes the absolute percentage difference between the pool price and the reference price
         // i.e. 0.005e18 = 0.50% difference between pool price and reference price
-        uint256 absPercentageDiffWad = absPercentageDifferenceWad(
-                uint160(poolSqrtPriceX96),
-                referenceSqrtPriceX96
-            );
-        
-        console.log("PegStabilityHook. absPercentageDiffWad: ", absPercentageDiffWad);
+        uint256 absPercentageDiffWad = absPercentageDifferenceWad(uint160(poolSqrtPriceX96), referenceSqrtPriceX96);
+
+        // console.log("PegStabilityHook. absPercentageDiffWad: ", absPercentageDiffWad);
 
         // convert percentage WAD to pips, i.e. 0.05e18 = 5% = 50_000
         uint24 fee = uint24(absPercentageDiffWad / 1e12);
@@ -183,12 +174,11 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
         // Calculate sqrt(p / d) * 2 ^ 96
         uint256 _divX96 = (uint256(sqrtPriceX96) * uint256(Q96)) / uint256(denominatorX96);
 
-        console.log("PegStabilityHook. _divX96 = ", _divX96);
-
+        // console.log("PegStabilityHook. _divX96 = ", _divX96);
 
         // convert to WAD
         uint256 _percentageDiffWad = Math.mulDiv(_divX96 ** 2, 1e18, Q192);
-        console.log("PegStabilityHook. _percentageDiffWad = ", _percentageDiffWad);
+        // console.log("PegStabilityHook. _percentageDiffWad = ", _percentageDiffWad);
         return (1e18 < _percentageDiffWad) ? _percentageDiffWad - 1e18 : 1e18 - _percentageDiffWad;
     }
 }

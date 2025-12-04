@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {console} from "forge-std/console.sol";
+
 import {BaseOverrideFee} from "@openzeppelin/uniswap-hooks/src/fee/BaseOverrideFee.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IPoolManager, SwapParams, ModifyLiquidityParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -14,6 +16,8 @@ import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interfaces/AggregatorV2V3Interface.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title Block-Adaptive Hook
@@ -49,7 +53,7 @@ contract BAHook is BaseOverrideFee, Ownable {
     {
         _poolManager = poolManager;
         _token0UsdtFeed = ethUsdtFeed;
-        _token0UsdtFeed = shibUsdtFeed;
+        _token1UsdtFeed = shibUsdtFeed;
     }
 
     function poolManager() public view override returns (IPoolManager) {
@@ -59,7 +63,7 @@ contract BAHook is BaseOverrideFee, Ownable {
     // Helper to get current token0/token1 price ratio from feeds
     function _getPriceRatio() private view returns (uint256) {
         (, int256 token0Price,,,) = _token0UsdtFeed.latestRoundData();
-        (, int256 token1Price,,,) = _token0UsdtFeed.latestRoundData();
+        (, int256 token1Price,,,) = _token1UsdtFeed.latestRoundData();
         require(token0Price > 0 && token1Price > 0, "Invalid price data");
         // Ratio = (token0/USD) / (token1/USD), scaled by 1e18 for precision
         return uint256(token0Price) * 1e18 / uint256(token1Price);
@@ -117,6 +121,20 @@ contract BAHook is BaseOverrideFee, Ownable {
     {
         PoolId poolId = key.toId();
         uint256 currentRatio = _getPriceRatio();
+
+        /*
+        console.log(string(
+            abi.encodePacked(
+                "BAHook. CurrentRation =  ", Strings.toString(currentRatio), " LastPriceRatio =  ", Strings.toString(lastPriceRatio[poolId])
+            )
+        ));
+        */
+
+        (, int256 token0Price,,,) = _token0UsdtFeed.latestRoundData();
+        (, int256 token1Price,,,) = _token1UsdtFeed.latestRoundData();
+
+        // console.log("BAHook. token0Price: ", token0Price);
+        // console.log("BAHook. token1Price: ", token1Price);
 
         if (block.number > lastBlock[poolId]) {
             if (currentRatio < lastPriceRatio[poolId]) {

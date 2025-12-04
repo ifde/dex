@@ -23,6 +23,10 @@ forge script script/DeployHook.s.sol MEVChargeHook 0 0 --rpc-url http://localhos
 forge script script/DeployHook.s.sol PegStabilityHook 0 0 --rpc-url http://localhost:8545 --broadcast
 ```
 
+```
+forge script script/DeployHook.s.sol DAHook 0 0 --rpc-url http://localhost:8545 --broadcast
+```
+
 `running a deploy Hook and Create Pool Script`
 `params: <FeedAddress0, FeedAddress1, tokenAddress0, tokenAddress1>`
 ```

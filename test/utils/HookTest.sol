@@ -76,7 +76,9 @@ contract HookTest is BaseTest {
             flags = address(HookFlags.MEV_CHARGE_HOOK_FLAGS);
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("PegStabilityHook"))) {
             flags = address(HookFlags.PEG_STABILITY_HOOK_FLAGS);
-        } 
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("DAHook"))) {
+            flags = address(HookFlags.DA_HOOK_FLAGS);
+        }
 
         console.log("Flag address: ", vm.toString(flags));
 
