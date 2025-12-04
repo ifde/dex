@@ -158,7 +158,7 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
                 referenceSqrtPriceX96
             );
         
-        console.log("PegStabilityHook. absPercentageDiffWad: ", absPercentageDiffWad);
+        // console.log("PegStabilityHook. absPercentageDiffWad: ", absPercentageDiffWad);
 
         // convert percentage WAD to pips, i.e. 0.05e18 = 5% = 50_000
         uint24 fee = uint24(absPercentageDiffWad / 1e12);
@@ -183,12 +183,12 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
         // Calculate sqrt(p / d) * 2 ^ 96
         uint256 _divX96 = (uint256(sqrtPriceX96) * uint256(Q96)) / uint256(denominatorX96);
 
-        console.log("PegStabilityHook. _divX96 = ", _divX96);
+        // console.log("PegStabilityHook. _divX96 = ", _divX96);
 
 
         // convert to WAD
         uint256 _percentageDiffWad = Math.mulDiv(_divX96 ** 2, 1e18, Q192);
-        console.log("PegStabilityHook. _percentageDiffWad = ", _percentageDiffWad);
+        // console.log("PegStabilityHook. _percentageDiffWad = ", _percentageDiffWad);
         return (1e18 < _percentageDiffWad) ? _percentageDiffWad - 1e18 : 1e18 - _percentageDiffWad;
     }
 }

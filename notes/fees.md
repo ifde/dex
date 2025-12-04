@@ -14,6 +14,8 @@ F_initial = 30 bps
 
 2. MEVCheck Hook
 
+Source: https://github.com/MrLightspeed/MEVChargeHook
+
 MEV (Maximal Extractable Value) - the maximum profit that block producers see by looking at pending transaction in a blockchain
 
 How we mitigate MEV: 
@@ -40,13 +42,25 @@ impactFee = tradeAmount / totalLiquidity
 
 Total fee = max(TradingFee, impactFee)
 
+
+
 3. PegStability Hook
+
+Source: https://github.com/Renzo-Protocol/foundational-hooks
+
 A hook to keep DEX price B above CEX price B (pegging token B)
 
 Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
 Then we stimulate swaps by keeping the minimum fee
 
 On the other hand, Fee = percentage difference between Pool Price and CEX Price
+
+4. Deal Adaptive Hook (DAHook)
+Idea: if the last swap was A -> B   
+Then slightly increase fee in that direction: feeAB = feeAB + delta   
+And decrese fee in another direction: feeBA = feeBA - delta   
+
+
 
 
 
