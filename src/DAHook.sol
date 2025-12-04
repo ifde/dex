@@ -32,7 +32,10 @@ contract DAHook is BaseOverrideFee, Ownable {
     IPoolManager private immutable _poolManager;
 
     // This contract doesn't use price feeds
-    constructor(IPoolManager poolManager, AggregatorV2V3Interface, AggregatorV2V3Interface) BaseOverrideFee() Ownable(msg.sender) {
+    constructor(IPoolManager poolManager, AggregatorV2V3Interface, AggregatorV2V3Interface)
+        BaseOverrideFee()
+        Ownable(msg.sender)
+    {
         _poolManager = poolManager;
     }
 

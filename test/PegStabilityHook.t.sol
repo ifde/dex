@@ -52,17 +52,18 @@ contract PegStabilityHookTest is HookTest {
         pegHook.setExchangeRate(exchangeRate);
         console.log("PegStabilityHook deloyed to: ", vm.toString(address(pegHook)));
         deployPool();
-        console.log("PegStabilityHook liquidity before increase of Liquidity: ", positionManager.getPositionLiquidity(tokenId));
-        positionManager.increaseLiquidity(
-            tokenId, 9_900e18, 2 ** 100, 2 ** 100, block.timestamp, Constants.ZERO_BYTES
+        console.log(
+            "PegStabilityHook liquidity before increase of Liquidity: ", positionManager.getPositionLiquidity(tokenId)
         );
-        console.log("PegStabilityHook liquidity after increase of Liquidity: ", positionManager.getPositionLiquidity(tokenId));
+        positionManager.increaseLiquidity(tokenId, 9_900e18, 2 ** 100, 2 ** 100, block.timestamp, Constants.ZERO_BYTES);
+        console.log(
+            "PegStabilityHook liquidity after increase of Liquidity: ", positionManager.getPositionLiquidity(tokenId)
+        );
     }
 
     // helper
     function getSwapFeeFromEvent(VmSafe.Log[] memory recordedLogs) internal pure returns (uint24 fee) {
-          bytes32 SWAP_EVENT_SIGNATURE =
-        keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
+        bytes32 SWAP_EVENT_SIGNATURE = keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
         for (uint256 i; i < recordedLogs.length; i++) {
             if (recordedLogs[i].topics[0] == SWAP_EVENT_SIGNATURE) {
                 (,,,,, fee) = abi.decode(recordedLogs[i].data, (int128, int128, uint160, uint128, int24, uint24));
@@ -94,16 +95,12 @@ contract PegStabilityHookTest is HookTest {
             exactIn
                 ? assertEq(int256(result.amount0()), amountSpecified)
                 : assertLt(int256(result.amount0()), amountSpecified);
-            exactIn
-                ? assertGt(int256(result.amount1()), 0)
-                : assertEq(int256(result.amount1()), amountSpecified);
+            exactIn ? assertGt(int256(result.amount1()), 0) : assertEq(int256(result.amount1()), amountSpecified);
         } else {
             exactIn
                 ? assertEq(int256(result.amount1()), amountSpecified)
                 : assertLt(int256(result.amount1()), amountSpecified);
-            exactIn
-                ? assertGt(int256(result.amount0()), 0)
-                : assertEq(int256(result.amount0()), amountSpecified);
+            exactIn ? assertGt(int256(result.amount0()), 0) : assertEq(int256(result.amount0()), amountSpecified);
         }
     }
 
@@ -171,7 +168,7 @@ contract PegStabilityHookTest is HookTest {
 
         // move the pool price away from peg
         vm.recordLogs();
-         BalanceDelta highFeeSwap = swapRouter.swap({
+        BalanceDelta highFeeSwap = swapRouter.swap({
             amountSpecified: -int256(0.1e18),
             amountLimit: 0,
             zeroForOne: !zeroForOne,
@@ -185,7 +182,7 @@ contract PegStabilityHookTest is HookTest {
 
         // swap towards the peg
         vm.recordLogs();
-          BalanceDelta lowFeeSwap = swapRouter.swap({
+        BalanceDelta lowFeeSwap = swapRouter.swap({
             amountSpecified: -int256(0.1e18),
             amountLimit: 0,
             zeroForOne: zeroForOne,
@@ -215,7 +212,7 @@ contract PegStabilityHookTest is HookTest {
     function test_fuzz_linear_fee(uint256 amount) public {
         vm.assume(0.5e18 < amount && amount <= 48.75e18);
         // move the pool price to off peg
-                swapRouter.swap({
+        swapRouter.swap({
             amountSpecified: -int256(amount),
             amountLimit: 0,
             zeroForOne: false,
@@ -225,19 +222,20 @@ contract PegStabilityHookTest is HookTest {
             deadline: block.timestamp + 1
         });
 
-        (uint160 poolSqrtPriceX96, , , ) = poolManager.getSlot0(poolKey.toId());
-        
+        (uint160 poolSqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+
         ///
         // AbsPrecentageDiffWad calculation
         ///
 
         uint160 Q96 = 2 ** 96;
         uint256 Q192 = 2 ** 192;
-        uint256 _divX96 = (uint256(poolSqrtPriceX96) * uint256(Q96)) / uint256(uint160(FixedPointMathLib.sqrt(exchangeRate) * (2 ** 96) / 1e9));
-
+        uint256 _divX96 = (uint256(poolSqrtPriceX96) * uint256(Q96))
+            / uint256(uint160(FixedPointMathLib.sqrt(exchangeRate) * (2 ** 96) / 1e9));
 
         uint256 _percentageDiffWad = ((_divX96 ** 2) * 1e18) / Q192;
-        uint256 absPercentageDiffWad = (1e18 < _percentageDiffWad) ? _percentageDiffWad - 1e18 : 1e18 - _percentageDiffWad;
+        uint256 absPercentageDiffWad =
+            (1e18 < _percentageDiffWad) ? _percentageDiffWad - 1e18 : 1e18 - _percentageDiffWad;
 
         ///
         //
@@ -253,7 +251,7 @@ contract PegStabilityHookTest is HookTest {
         }
         // move the pool price away from peg
         vm.recordLogs();
-                  swapRouter.swap({
+        swapRouter.swap({
             amountSpecified: -int256(0.1e18),
             amountLimit: 0,
             zeroForOne: false,
