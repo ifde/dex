@@ -53,6 +53,21 @@ contract BaseHookTest is Test, HookTest {
 
     function tableHooksTest(string memory hookNames) public {
         console.log(hookNames);
+
+        // Check if hook file exists
+        string memory hookPath = string.concat(vm.projectRoot(), "/src/", hookNames, ".sol");
+        string[] memory checkCmd = new string[](3);
+        checkCmd[0] = "sh";
+        checkCmd[1] = "-c";
+        checkCmd[2] = string.concat("test -f ", hookPath, "; echo $?");
+        bytes memory result = vm.ffi(checkCmd);
+        console.log(string(result));
+        uint256 exitCode = vm.parseUint(string(result));
+        if (exitCode != 0) {
+            console.log("Hook file not found, skipping test");
+            vm.skip(true);
+        }
+
         deployHookAndFeeds(hookNames);
 
         deployPool();
@@ -92,7 +107,7 @@ contract BaseHookTest is Test, HookTest {
 
         // Read ETH/USDT data
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/ETHUSDT-1m-2024-04.csv");
+        string memory path = string.concat(root, "/ETHUSDT-1m-latest.csv");
 
         string memory ethData = vm.readFile(path);
         string[] memory ethLines = split(ethData, "\n");
@@ -100,7 +115,7 @@ contract BaseHookTest is Test, HookTest {
         console.log("Path to the ETH/USDT Feed", path);
 
         root = vm.projectRoot();
-        path = string.concat(root, "/SHIBUSDT-1m-2024-04.csv");
+        path = string.concat(root, "/SHIBUSDT-1m-latest.csv");
 
         // Read SHIB/USDT data (assume same length/timestamps)
         string memory shibData = vm.readFile(path);

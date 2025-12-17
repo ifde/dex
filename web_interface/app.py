@@ -56,10 +56,10 @@ def load_hooks():
 # Load hooks at startup
 HOOKS = load_hooks()
 
-def create_base_zip(zip_file, hook_name):
+def create_base_zip(zip_file, hook_name, updated_code=''):
     """Create the base project structure in the ZIP."""
     # Add root files
-    root_files = ['foundry.toml', 'remappings.txt', 'foundry.lock', '.gitignore', '.gitmodules']
+    root_files = ['foundry.toml', 'remappings.txt', 'foundry.lock', '.gitignore', '.gitmodules', 'requirements.txt', 'fetch_binance_data.py']
     for file in root_files:
         src_path = os.path.join(PROJECT_ROOT, file)
         if os.path.exists(src_path):
@@ -104,7 +104,8 @@ def create_base_zip(zip_file, hook_name):
     
     # Add hook-specific file
     if hook_name in HOOKS:
-        zip_file.writestr(f'src/{hook_name}.sol', HOOKS[hook_name]['code'])
+        code_to_use = updated_code if updated_code else HOOKS[hook_name]['code']
+        zip_file.writestr(f'src/{hook_name}.sol', code_to_use)
     
     # Add README (overwrite if exists)
     zip_file.writestr('README.md', f'# {hook_name} Project\n\nInstructions for deployment.')
@@ -124,11 +125,16 @@ def select_hook():
         'code': hook_data.get('code', '')
     })
 
-@app.route('/download/<hook_name>')
+@app.route('/download/<hook_name>', methods=['GET', 'POST'])
 def download(hook_name):
+    if request.method == 'POST':
+        updated_code = request.form.get('code', HOOKS.get(hook_name, {}).get('code', ''))
+    else:
+        updated_code = HOOKS.get(hook_name, {}).get('code', '')
+    
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        create_base_zip(zip_file, hook_name)
+        create_base_zip(zip_file, hook_name, updated_code)
     
     zip_buffer.seek(0)
     return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{hook_name}_project.zip')

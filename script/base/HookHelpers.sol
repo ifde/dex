@@ -39,6 +39,8 @@ contract HookHelpers is BaseScript {
 
         vm.startBroadcast();
 
+        uint160 flags;
+
         // The hook address
         if (keccak256(bytes(hookName)) == keccak256(bytes("BAHook"))) {
             flags = HookFlags.BA_HOOK_FLAGS;
