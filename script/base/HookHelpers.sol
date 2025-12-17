@@ -14,10 +14,11 @@ import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interface
 
 import {BaseScript} from "./BaseScript.sol";
 
-import {BAHook} from "../../src/BAHookNew.sol";
+import {BAHook} from "../../src/BAHook.sol";
 import {MEVChargeHook} from "../../src/MEVChargeHook.sol";
 import {PegStabilityHook} from "../../src/PegStabilityHook.sol";
 import {DAHook} from "../../src/DAHook.sol";
+import {ABHook} from "../../src/ABHook.sol";
 
 contract HookHelpers is BaseScript {
     AggregatorV2V3Interface priceFeed0;
@@ -92,6 +93,18 @@ contract HookHelpers is BaseScript {
             require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
 
             console.log("DAHook deployed at:", address(hookContract));
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("ABHook"))) {
+            uint160 flags = HookFlags.AB_HOOK_FLAGS;
+            (address hookAddress, bytes32 salt) =
+                HookMiner.find(CREATE2_FACTORY, flags, type(ABHook).creationCode, constructorArgs);
+
+            hookContract = new ABHook{salt: salt}(
+                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
+            );
+
+            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
+
+            console.log("ABHook deployed at:", address(hookContract));
         }
 
         vm.stopBroadcast();

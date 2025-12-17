@@ -956,7 +956,7 @@ See here: https://docs.uniswap.org/contracts/v4/guides/flash-accounting
 2. `take` - the manager transefs ERC20 tokens to you (because it owes you)
 And resolves the associated delta
 
-If you take more that is owed to you, it will transfer what you request plus create another delta (where you owe the manager)
+If you take more than is owed to you, it will transfer what you request plus create another delta (where you owe the manager)
 
 Note: I think it transfers everything at the end of the transaction to prevent being deprived of the ERC20 tokens
 
@@ -985,6 +985,17 @@ Used to forfeit insignificant token amounts to avoid paying transaction costs
 Note: see the `IPoolManager` interface here:
 
 "@uniswap/v4-core/src/interfaces/IPoolManager.sol"
+
+
+### Chain, Network, Layer
+
+`Chain`:	Data structure (blocks)	The ledger storing transaction history.
+`Network	Infrastructure (nodes)`:	The P2P system that validates and maintains the chain.
+`Layer`:	Hierarchical protocol (L1, L2)	A solution built to improve the functionality or scale of a chain/network.
+
+
+
+
 
 
 

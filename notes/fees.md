@@ -40,7 +40,7 @@ timeFee = (currentTime - lastTradeTime) / cooldownPeriod
 
 impactFee = tradeAmount / totalLiquidity
 
-Total fee = max(TradingFee, impactFee)
+Total fee = max(timeFee, impactFee)
 
 
 
@@ -59,6 +59,16 @@ On the other hand, Fee = percentage difference between Pool Price and CEX Price
 Idea: if the last swap was A -> B   
 Then slightly increase fee in that direction: feeAB = feeAB + delta   
 And decrese fee in another direction: feeBA = feeBA - delta   
+
+5. AMM Based Hook (ABHook)
+Idea: If the last swap was A -> B and AMM price changed by $\delta$   
+Then feeAB = feeAB + A * $\delta$ (A > 0)   
+Where A is a constant     
+And we keep a constant sum of fees:     
+feeAB + feeBA = K   
+
+So feeBA = K - feeAB    
+
 
 
 
