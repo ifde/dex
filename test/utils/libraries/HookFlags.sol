@@ -20,4 +20,7 @@ library HookFlags {
 
     uint160 public constant DA_HOOK_FLAGS =
         uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144);
+
+    uint160 public constant AB_HOOK_FLAGS =
+        uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG) ^ (0x4444 << 144);
 }

@@ -45,7 +45,7 @@ contract MEVChargeHook is BaseOverrideFee, Ownable {
     uint256 private constant MALICIOUS_FEE_MAX_DEFAULT = 2500; // 25%
     uint256 private constant FIXED_LP_FEE_DEFAULT = 30; // 0.3%
     uint256 private constant MAX_COOLDOWN_SECONDS = 600;
-    uint256 private constant FEE_DENOMINATOR = 10_000;
+    uint256 private constant FEE_DENOMINATOR = 10000;
     uint8 private constant MAX_BLOCK_OFFSET = 3;
     uint8 private constant MAX_LINK_DEPTH = 3;
     uint8 private constant FLAG_IS_FEE_ADDRESS = 1 << 0;

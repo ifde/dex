@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Uniswap V4 Hook Configurator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <style>
+        body { display: flex; font-family: Arial, sans-serif; }
+        .left { flex: 1; padding: 20px; }
+        .right { flex: 0 0 60%; max-width: 60%; padding: 20px; }
+        pre { 
+        background: #f4f4f4; 
+        padding: 10px; 
+        border-radius: 5px; 
+        max-height: 60vh; 
+        overflow: auto; 
+        white-space: pre-wrap !important; 
+        word-wrap: break-word !important; 
+        }
+        .language-solidity { white-space: pre-wrap !important; word-wrap: break-word !important; }
+        .param {
+        display: grid;
+        grid-template-columns: 1fr 160px; /* label wraps, input fixed */
+        column-gap: 12px;
+        align-items: center;
+        margin: 6px 0;
+        }
+        .param label {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        }
+        .param input {
+        width: 100%;
+        box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="left">
+        <h1>Select a Hook</h1>
+        <form id="hookForm">
+            <select name="hook" id="hookSelect">
+                {% for hook in hooks %}
+                <option value="{{ hook }}">{{ hook }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Select</button>
+        </form>
+        
+        <div id="hookDetails" style="display:none;">
+            <h2>Description</h2>
+            <p id="description"></p>
+            <h2>Parameters</h2>
+            <div id="params"></div>
+            <button id="downloadBtn">Download Project</button>
+        </div>
+    </div>
+    
+    <div class="right">
+        <h2>Code</h2>
+        <pre><code id="code" class="language-solidity"></code></pre>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-solidity.min.js"></script>
+    <script>
+        let currentCode = '';
+        let paramDefaults = {};
+
+        document.getElementById('hookForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const hook = document.getElementById('hookSelect').value;
+            fetch('/select_hook', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'hook=' + hook
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('description').innerHTML = data.description;
+                currentCode = data.code;
+                paramDefaults = {};
+                data.params.forEach(p => {
+                    const [key, value] = p.split(': ');
+                    paramDefaults[key] = value.split(' ')[0]; // Extract number
+                });
+                const paramsHtml = data.params.map(p => {
+                const [key, value] = p.split(': ');
+                const num = value.split(' ')[0];
+                return `<div class="param">
+                            <label title="${key}">${key}:</label>
+                            <input type="number" value="${num}" data-param="${key}">
+                        </div>`;
+                }).join('');
+                document.getElementById('params').innerHTML = paramsHtml;
+                updateCode();
+                document.getElementById('hookDetails').style.display = 'block';
+                document.getElementById('downloadBtn').onclick = () => window.location.href = `/download/${hook}`;
+            });
+        });
+
+        function updateCode() {
+            let updatedCode = currentCode;
+            Object.keys(paramDefaults).forEach(key => {
+                const input = document.querySelector(`input[data-param="${key}"]`);
+                if (input) {
+                    const newValue = input.value;
+                    const oldValue = paramDefaults[key];
+                    updatedCode = updatedCode.replace(new RegExp(`\\b${key}\\s*=\\s*${oldValue}\\b`, 'g'), `${key} = ${newValue}`);
+                }
+            });
+            document.getElementById('code').textContent = updatedCode;
+            Prism.highlightElement(document.getElementById('code'));
+        }
+
+        document.addEventListener('input', function(e) {
+            if (e.target.matches('input[data-param]')) {
+                updateCode();
+            }
+        });
+    </script>
+</body>
+</html>

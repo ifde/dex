@@ -53,6 +53,7 @@ contract BaseHookTest is Test, HookTest {
 
     function tableHooksTest(string memory hookNames) public {
         console.log(hookNames);
+
         deployHookAndFeeds(hookNames);
 
         deployPool();
@@ -92,7 +93,7 @@ contract BaseHookTest is Test, HookTest {
 
         // Read ETH/USDT data
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/ETHUSDT-1m-2024-04.csv");
+        string memory path = string.concat(root, "/ETHUSDT-1m-latest.csv");
 
         string memory ethData = vm.readFile(path);
         string[] memory ethLines = split(ethData, "\n");
@@ -100,7 +101,7 @@ contract BaseHookTest is Test, HookTest {
         console.log("Path to the ETH/USDT Feed", path);
 
         root = vm.projectRoot();
-        path = string.concat(root, "/SHIBUSDT-1m-2024-04.csv");
+        path = string.concat(root, "/SHIBUSDT-1m-latest.csv");
 
         // Read SHIB/USDT data (assume same length/timestamps)
         string memory shibData = vm.readFile(path);

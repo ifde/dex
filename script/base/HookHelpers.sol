@@ -14,11 +14,6 @@ import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interface
 
 import {BaseScript} from "./BaseScript.sol";
 
-import {BAHook} from "../../src/BAHookNew.sol";
-import {MEVChargeHook} from "../../src/MEVChargeHook.sol";
-import {PegStabilityHook} from "../../src/PegStabilityHook.sol";
-import {DAHook} from "../../src/DAHook.sol";
-
 contract HookHelpers is BaseScript {
     AggregatorV2V3Interface priceFeed0;
     AggregatorV2V3Interface priceFeed1;
@@ -44,55 +39,38 @@ contract HookHelpers is BaseScript {
 
         vm.startBroadcast();
 
+        uint160 flags;
+
+        // The hook address
         if (keccak256(bytes(hookName)) == keccak256(bytes("BAHook"))) {
-            uint160 flags = HookFlags.BA_HOOK_FLAGS;
-            (address hookAddress, bytes32 salt) =
-                HookMiner.find(CREATE2_FACTORY, flags, type(BAHook).creationCode, constructorArgs);
-
-            hookContract = new BAHook{salt: salt}(
-                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
-            );
-
-            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
-
-            console.log("BAHook deployed at:", address(hookContract));
+            flags = HookFlags.BA_HOOK_FLAGS;
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("MEVChargeHook"))) {
-            uint160 flags = HookFlags.MEV_CHARGE_HOOK_FLAGS;
-            (address hookAddress, bytes32 salt) =
-                HookMiner.find(CREATE2_FACTORY, flags, type(MEVChargeHook).creationCode, constructorArgs);
-
-            hookContract = new MEVChargeHook{salt: salt}(
-                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
-            );
-
-            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
-
-            console.log("MEVChargeHook deployed at:", address(hookContract));
+            flags = HookFlags.MEV_CHARGE_HOOK_FLAGS;
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("PegStabilityHook"))) {
-            uint160 flags = HookFlags.PEG_STABILITY_HOOK_FLAGS;
-            (address hookAddress, bytes32 salt) =
-                HookMiner.find(CREATE2_FACTORY, flags, type(PegStabilityHook).creationCode, constructorArgs);
-
-            hookContract = new PegStabilityHook{salt: salt}(
-                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
-            );
-
-            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
-
-            console.log("PegStabilityHook deployed at:", address(hookContract));
+            flags = HookFlags.PEG_STABILITY_HOOK_FLAGS;
         } else if (keccak256(bytes(hookName)) == keccak256(bytes("DAHook"))) {
-            uint160 flags = HookFlags.DA_HOOK_FLAGS;
-            (address hookAddress, bytes32 salt) =
-                HookMiner.find(CREATE2_FACTORY, flags, type(DAHook).creationCode, constructorArgs);
-
-            hookContract = new DAHook{salt: salt}(
-                poolManager, AggregatorV2V3Interface(priceFeed0), AggregatorV2V3Interface(priceFeed1)
-            );
-
-            require(address(hookContract) == hookAddress, "DeployHookScript: Hook Address Mismatch");
-
-            console.log("DAHook deployed at:", address(hookContract));
+            flags = HookFlags.DA_HOOK_FLAGS;
+        } else if (keccak256(bytes(hookName)) == keccak256(bytes("ABHook"))) {
+            flags = HookFlags.AB_HOOK_FLAGS;
         }
+
+        // Get bytecode and compute address
+        bytes memory path = abi.encodePacked(hookName, ".sol:", hookName);
+        bytes memory bytecode = vm.getCode(string(path));
+        bytes memory initCode = abi.encodePacked(bytecode, constructorArgs);
+
+        (address hookAddress, bytes32 salt) = HookMiner.find(CREATE2_FACTORY, flags, initCode, "");
+
+        // Deploy using CREATE2 assembly (appends constructor args to bytecode)
+        address deployed;
+        assembly {
+            deployed := create2(0, add(initCode, 0x20), mload(initCode), salt)
+        }
+        require(deployed == hookAddress, "Deployment address mismatch");
+
+        hookContract = IHooks(deployed);
+
+        console.log(string(abi.encodePacked(hookName, " deployed at:")), address(hookContract));
 
         vm.stopBroadcast();
     }
