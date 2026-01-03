@@ -32,12 +32,28 @@ def load_hooks():
         # Extract parameters (updated patterns for flexibility)
         params = []
         param_patterns = {
-        'INITIAL_FEE': r'uint24\s+private\s+INITIAL_FEE\s*=\s*(\d+);',
-        'FSTEP': r'uint24\s+private\s+FSTEP\s*=\s*(\d+);',
-        'MAX_FEE': r'uint24\s+private\s+MAX_FEE\s*=\s*(\d+);',
-        'K': r'uint24\s+private\s+K\s*=\s*(\d+);',
-        'A': r'uint256\s+private\s+A\s*=\s*(\d+);'
+            # Defaults and core constants
+            'MALICIOUS_FEE_MAX_DEFAULT': r'uint(?:8|24|256)\s+(?:private|public)?\s+(?:constant\s+)?MALICIOUS_FEE_MAX_DEFAULT\s*=\s*([^;]+);',
+            'FIXED_LP_FEE_DEFAULT':      r'uint(?:8|24|256)\s+(?:private|public)?\s+(?:constant\s+)?FIXED_LP_FEE_DEFAULT\s*=\s*([^;]+);',
+            'MAX_COOLDOWN_SECONDS':      r'uint(?:8|24|256)\s+(?:private|public)?\s+(?:constant\s+)?MAX_COOLDOWN_SECONDS\s*=\s*([^;]+);',
+            'FEE_DENOMINATOR':           r'uint(?:8|24|256)\s+(?:private|public)?\s+(?:constant\s+)?FEE_DENOMINATOR\s*=\s*([^;]+);',
+            'MAX_BLOCK_OFFSET':          r'uint8\s+(?:private|public)?\s+(?:constant\s+)?MAX_BLOCK_OFFSET\s*=\s*([^;]+);',
+            'MAX_LINK_DEPTH':            r'uint8\s+(?:private|public)?\s+(?:constant\s+)?MAX_LINK_DEPTH\s*=\s*([^;]+);',
+            'FLAG_IS_FEE_ADDRESS':       r'uint8\s+(?:private|public)?\s+(?:constant\s+)?FLAG_IS_FEE_ADDRESS\s*=\s*([^;]+);',
+
+            # Hook tuning constants
+            'INITIAL_FEE':               r'uint24\s+(?:private|public)?\s+(?:constant\s+)?INITIAL_FEE\s*=\s*([^;]+);',
+            'FSTEP':                     r'uint24\s+(?:private|public)?\s+(?:constant\s+)?FSTEP\s*=\s*([^;]+);',
+            'MAX_FEE':                   r'uint24\s+(?:private|public)?\s+(?:constant\s+)?MAX_FEE\s*=\s*([^;]+);',
+            'K':                         r'uint24\s+(?:private|public)?\s+(?:constant\s+)?K\s*=\s*([^;]+);',
+            'A':                         r'uint256\s+(?:private|public)?\s+(?:constant\s+)?A\s*=\s*([^;]+);',
+
+            # Public BPS bounds (PegStabilityHook etc.)
+            'MAX_FEE_BPS':               r'uint24\s+(?:public|private)?\s+(?:constant\s+)?MAX_FEE_BPS\s*=\s*([^;]+);',
+            'MIN_FEE_BPS':               r'uint24\s+(?:public|private)?\s+(?:constant\s+)?MIN_FEE_BPS\s*=\s*([^;]+);',
         }
+
+
         for param, pattern in param_patterns.items():
             match = re.search(pattern, code)
             if match:
@@ -88,11 +104,27 @@ def create_base_zip(zip_file, hook_name, updated_code=''):
                 for file in files:
                     file_path = os.path.join(root, file)
                     arcname = os.path.join(zip_folder, os.path.relpath(file_path, src_path))
+                    if arcname == 'test/utils/libraries/HookConstants.sol':
+                        continue
                     zip_file.write(file_path, arcname)
         else:
             zip_file.writestr(zip_folder + 'placeholder', f'// Placeholder for {zip_folder}')
+
     
-    # Add specific files (if not covered by folders)
+    # Modify HookConstants.sol to include only the selected hook
+    hook_constants_src = os.path.join(PROJECT_ROOT, 'test/utils/libraries/HookConstants.sol')
+    if os.path.exists(hook_constants_src):
+        with open(hook_constants_src, 'r') as f:
+            content = f.read()
+        # Replace the array initialization and assignments with the single hook
+        content = re.sub(
+            r'string\[\] memory names = new string\[\]\(5\);\s*names\[0\] = "[^"]+";\s*names\[1\] = "[^"]+";\s*names\[2\] = "[^"]+";\s*names\[3\] = "[^"]+";\s*names\[4\] = "[^"]+";',
+            f'string[] memory names = new string[](1);\n    names[0] = "{hook_name}";',
+            content
+        )
+        zip_file.writestr('test/utils/libraries/HookConstants.sol', content)
+    
+    # Add specific files
     files_to_copy = {
     'test/testHook.t.sol': 'test/testHook.t.sol',
     'script/deployHook.s.sol': 'script/deployHook.s.sol'

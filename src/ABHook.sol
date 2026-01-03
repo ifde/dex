@@ -25,10 +25,10 @@ contract ABHook is BaseOverrideFee, Ownable {
     using StateLibrary for IPoolManager;
 
     // Constants
-    uint24 private constant INITIAL_FEE = 3000; // 30 bps
-    uint24 private constant K = 6000; // Constant sum for fees (60 bps)
-    uint24 private constant MAX_FEE = 10000; // Cap at 100 bps
-    uint256 private constant A = 100; // Constant for sigma
+    uint24 private INITIAL_FEE = 3000; // 30 bps
+    uint24 private K = 6000; // Constant sum for fees (60 bps)
+    uint24 private MAX_FEE = 10000; // Cap at 100 bps
+    uint256 private A = 100; // Constant for sigma
 
     // State per pool
     mapping(PoolId => uint24) public feeAB; // Fee for A -> B

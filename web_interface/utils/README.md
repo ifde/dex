@@ -2,7 +2,7 @@
 
 ## How to get started 
 
-1. Install dependencies
+1. Install dependencies (if you don't have the `\lib` folder already)
 
 ```
 bash init.sh

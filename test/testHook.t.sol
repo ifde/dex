@@ -54,20 +54,6 @@ contract BaseHookTest is Test, HookTest {
     function tableHooksTest(string memory hookNames) public {
         console.log(hookNames);
 
-        // Check if hook file exists
-        string memory hookPath = string.concat(vm.projectRoot(), "/src/", hookNames, ".sol");
-        string[] memory checkCmd = new string[](3);
-        checkCmd[0] = "sh";
-        checkCmd[1] = "-c";
-        checkCmd[2] = string.concat("test -f ", hookPath, "; echo $?");
-        bytes memory result = vm.ffi(checkCmd);
-        console.log(string(result));
-        uint256 exitCode = vm.parseUint(string(result));
-        if (exitCode != 0) {
-            console.log("Hook file not found, skipping test");
-            vm.skip(true);
-        }
-
         deployHookAndFeeds(hookNames);
 
         deployPool();

@@ -23,11 +23,12 @@ import {AggregatorV2V3Interface} from "@chainlink/local/src/data-feeds/interface
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title PegStabilityHook
-/// @notice A hook to keep DEX price B above CEX price B (pegging token B)
-/// Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
-/// Then we stimulate swaps by keeping the minimum fee
-/// On the other hand, Fee = percentage difference between Pool Price and CEX Price
+/**
+ * @title PegStabilityHook
+ * Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
+ * Then we stimulate swaps by keeping the minimum fee
+ * On the other hand, Fee = percentage difference between Pool Price and CEX Price
+ */
 contract PegStabilityHook is BaseOverrideFee, Ownable {
     using StateLibrary for IPoolManager;
     using LPFeeLibrary for uint24;
@@ -43,7 +44,7 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
     uint256 private exchangeRate = 0;
 
     // Constants
-    uint24 public MAX_FEE_BPS = 10_000; // 1% max fee allowed, 1% = 10_000
+    uint24 public MAX_FEE_BPS = 10000; // 1% max fee allowed, 1% = 10_000
     uint24 public MIN_FEE_BPS = 100; // 0.01% mix fee allowed
 
     // Errors
