@@ -3,7 +3,7 @@
 ![alt text](image-3.png)
 
 1. Block-adaptive 
-Idea: if A becomes less desirable (price A / price B decreases), then traders will likely want to get more of token B
+Idea: if A becomes less desirable (CEX price A / price B decreases), then traders will likely want to get more of token B
 That means that the volume A -> B increases
 We want to reflect that by increasing a fee in the A -> B direction: 
 F_ab = F_ab + F_step
@@ -26,7 +26,7 @@ For the ModifyLiquidity operations:
 
 When liquidity is removed 
 
-penalty = fee * (time elapsed) / block_offset
+penalty = fee * (blocks elapsed) / block_offset
 
 this is donated to the pool 
 
