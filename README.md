@@ -11,3 +11,7 @@
 ```
 python ./web_interface/app.py
 ```
+
+### Run tests
+
+`forge test --gas-limit 100000000000000`

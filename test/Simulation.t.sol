@@ -37,83 +37,158 @@ contract SimulateTradesTest is Test, HookTest {
     struct SwapData {
         uint256 swapNumber;
         uint256 amountIn;
-        uint256 feeAmount;
         bool zeroForOne;
-        int256 priceA8;
-        int256 priceB8;
+        int256 priceAB;
+        int256 priceBA;
     }
 
     SwapData[] public swapHistory;
 
-    uint256 internal constant MAX_TRADES = 200;
+    // Ported from Python: User sim structs
+    struct InformedUserSim {
+        uint256 maxTradeFraction; // 15%
+        uint256 sensitivity; // 75%
+        uint256 minPriceGap; // 0.05%
+    }
+
+    struct UninformedUserSim {
+        uint256 meanTradeFraction; // 1%
+        uint256 stdTradeFraction; // 0.5%
+        uint256 probAToB; // 50%
+    }
+
+    // Simulation state
+    InformedUserSim informedUserSim;
+    UninformedUserSim uninformedUserSim;
+    uint256 uninformedTradeProbability = 100; // 100% for simplicity
+    uint256 numUninformedUsers = 2;
+
+    // Initial prices for summary
+    uint256 initialPriceA;
+    uint256 initialPriceB;
 
     function setUp() public {
         deployArtifactsAndLabel();
         deployCurrencyPair();
-    }
-
-    function testSimulateTradesFromCSV() public {
         deployHookAndFeeds("BAHook");
         deployPool();
 
+        // Store initial prices
+        (, int256 priceA,,,) = priceFeed0.latestRoundData();
+        (, int256 priceB,,,) = priceFeed1.latestRoundData();
+        initialPriceA = uint256(priceA);
+        initialPriceB = uint256(priceB);
+
+        // Initialize users (matching Python)
+        informedUserSim = InformedUserSim({maxTradeFraction: 150, sensitivity: 750, minPriceGap: 5});
+        uninformedUserSim = UninformedUserSim({meanTradeFraction: 10, stdTradeFraction: 5, probAToB: 50});
+    }
+
+    function testSimulateTradesFromCSVs() public {
         console.log("\nHook:", address(hookContract));
         console.logBytes32(PoolId.unwrap(poolKey.toId()));
         console.log("Token0:", Currency.unwrap(poolKey.currency0));
         console.log("Token1:", Currency.unwrap(poolKey.currency1));
 
-        string memory path = string.concat(vm.projectRoot(), "/trades_processed_new.csv");
-        string memory csv = vm.readFile(path);
-        console.log("Reading trades from:", path);
-
-        _simulateTrades(csv);
-        _printSummary(csv);
+        _simulateFromCSVs();
+        _printSummary();
     }
 
-    function _simulateTrades(string memory csv) internal {
-        uint256 lines = _countLines(csv);
-        if (lines <= 1) return; // header only
-        uint256 tradeLines = lines - 1;
-        uint256 maxTrades = tradeLines > MAX_TRADES ? MAX_TRADES : tradeLines;
+    function _simulateFromCSVs() internal {
+        // Read ETH/USDT CSV
+        string memory root = vm.projectRoot();
+        string memory ethPath = string.concat(root, "/ETHUSDT-1m-latest.csv");
+        string memory ethData = vm.readFile(ethPath);
+        string[] memory ethLines = _split(ethData, "\n");
 
-        for (uint256 i = 1; i <= maxTrades; i++) {
-            _processTradeLineCSV(csv, i);
-            vm.roll(block.number + 1);
+        // Read SHIB/USDT CSV
+        string memory shibPath = string.concat(root, "/SHIBUSDT-1m-latest.csv");
+        string memory shibData = vm.readFile(shibPath);
+        string[] memory shibLines = _split(shibData, "\n");
+
+        require(ethLines.length == shibLines.length, "CSV length mismatch");
+
+        uint256 initialBlock = block.number;
+
+        for (uint256 i = 1; i < ethLines.length; i++) {
+            if (bytes(ethLines[i]).length == 0) {
+                break;
+            }
+
+            // Parse ETH close price (5th field, 0-indexed)
+            string[] memory ethFields = _split(ethLines[i], ",");
+            int256 ethClose = _parseInt(ethFields[4]);
+
+            // Parse SHIB close price
+            string[] memory shibFields = _split(shibLines[i], ",");
+            int256 shibClose = _parseInt(shibFields[4]);
+
+            // Update mocks
+            priceFeed0.updateAnswer(ethClose);
+            priceFeed1.updateAnswer(shibClose);
+            priceUpdates += 2;
+
+            // Roll to next block
+            vm.roll(initialBlock + i);
+
+            uint256 priceAUint = uint256(ethClose);
+            uint256 priceBUint = uint256(shibClose);
+
+            // Process uninformed trades (like Python's loop)
+            for (uint256 j = 0; j < numUninformedUsers; j++) {
+                if (_trade(uninformedTradeProbability)) {
+                    (bool direction, uint256 amount) = _getUninformedUserAction(priceAUint, priceBUint);
+                    if (amount > 0) {
+                        _processDeal(direction, amount, ethClose, shibClose);
+                    }
+                }
+            }
+
+            // Process informed trade
+            (bool direction, uint256 amount) = _getInformedUserAction(priceAUint, priceBUint);
+            if (amount > 0) {
+                _processDeal(direction, amount, ethClose, shibClose);
+            }
         }
     }
 
-    function _processTradeLineCSV(string memory csv, uint256 lineNum) internal {
-        // CSV: direction,amount_in,price_a_usd,price_b_usd
-        (string memory direction, string memory amountStr, string memory priceAStr, string memory priceBStr) =
-            _readCsvLine(csv, lineNum);
+    function _getInformedUserAction(uint256 priceA, uint256 priceB)
+        internal
+        view
+        returns (bool zeroForOne, uint256 amountIn)
+    {
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        uint256 priceX96 = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) >> 96;
+        uint256 pPool = priceX96;
+        uint256 pExt = (priceA * 1e18) / priceB;
+        if (pExt == 0) return (false, 0);
 
-        if (bytes(direction).length == 0 || bytes(amountStr).length == 0) return;
+        uint256 gap = (pExt > pPool) ? ((pExt - pPool) * 10000) / pPool : ((pPool - pExt) * 10000) / pPool;
+        if (gap < informedUserSim.minPriceGap) return (false, 0);
 
-        bool zeroForOne = keccak256(bytes(direction)) == keccak256(bytes("A_TO_B"));
-
-        // amount_in to 1e18
-        uint256 amountIn = _parseDecimal(amountStr, 18);
-        if (amountIn == 0) return;
-
-        // prices to 8 decimals and update feeds
-        int256 priceAB = int256(_parseDecimal(priceAStr, 8));
-        int256 priceBA = int256(_parseDecimal(priceBStr, 8));
-
-        if (priceAB > 0) {
-            try priceFeed0.updateAnswer(priceAB) {
-                priceUpdates++;
-            } catch {}
-        }
-        if (priceBA > 0) {
-            try priceFeed1.updateAnswer(priceBA) {
-                priceUpdates++;
-            } catch {}
-        }
-
-        _executeSwapExact(amountIn, zeroForOne, priceAB, priceBA);
+        uint128 totalLiquidity = poolManager.getLiquidity(poolId);
+        uint256 maxIn = (uint256(totalLiquidity) * informedUserSim.maxTradeFraction) / 1000;
+        uint256 inAmount = (maxIn * informedUserSim.sensitivity * gap) / (1000 * 10000);
+        inAmount = inAmount > 1000e18 ? 1000e18 : inAmount;
+        return (pExt > pPool, inAmount);
     }
 
-    // Do swaps like in testHook.t.sol using the router helper
-    function _executeSwapExact(uint256 amountIn, bool zeroForOne, int256 priceA8, int256 priceB8) internal {
+    function _getUninformedUserAction(uint256 priceA, uint256 priceB)
+        internal
+        view
+        returns (bool zeroForOne, uint256 amountIn)
+    {
+        uint256 frac = _randomNormal(uninformedUserSim.meanTradeFraction, uninformedUserSim.stdTradeFraction);
+        if (frac < 1) return (false, 0);
+        bool aToB = _randomBool(uninformedUserSim.probAToB);
+
+        uint128 totalLiquidity = poolManager.getLiquidity(poolId);
+        uint256 maxIn = (uint256(totalLiquidity) * frac) / 10000;
+        uint256 inAmount = maxIn > 1000e18 ? 1000e18 : maxIn;
+        return (aToB, inAmount);
+    }
+
+    function _processDeal(bool zeroForOne, uint256 amountIn, int256 priceAB, int256 priceBA) internal {
         uint24 currentFee = hookContract.getFee(
             address(this),
             poolKey,
@@ -121,22 +196,11 @@ contract SimulateTradesTest is Test, HookTest {
             ""
         );
 
-        // Logs
-
         uint256 bal0Before = currency0.balanceOf(address(this));
         uint256 bal1Before = currency1.balanceOf(address(this));
 
-        console.log("---------\n amountIn ", amountIn);
-        console.log("zeroForOne ", zeroForOne);
-        console.log("receiver ", address(this));
-
-        uint256 balance0 = currency0.balanceOf(address(this));
-        uint256 balance1 = currency1.balanceOf(address(this));
-
-        console.log("Balance 0: ", balance0, " Balance 1: ", balance1);
-        console.log("Liquidity:", poolManager.getPositionLiquidity(poolKey.toId(), bytes32(tokenId)));
-        console.log("getLiquidity: ", poolManager.getLiquidity(poolKey.toId()));
-        console.log("\n--------");
+        // console.log("---------\n amountIn ", amountIn);
+        // console.log("zeroForOne ", zeroForOne);
 
         swapRouter.swapExactTokensForTokens({
             amountIn: amountIn,
@@ -151,125 +215,88 @@ contract SimulateTradesTest is Test, HookTest {
         uint256 bal0After = currency0.balanceOf(address(this));
         uint256 bal1After = currency1.balanceOf(address(this));
 
-        uint256 feeAmt;
         if (zeroForOne) {
-            uint256 actualIn = bal0Before > bal0After ? bal0Before - bal0After : 0;
-            feeAmt = (actualIn * currentFee) / 10000;
+            MockERC20(address(Currency.unwrap(currency0))).mint(address(this), amountIn * 2);
         } else {
-            uint256 actualIn = bal1Before > bal1After ? bal1Before - bal1After : 0;
-            feeAmt = (actualIn * currentFee) / 10000;
-        }
-
-        // Mint extra tokens to replenish balance (simulate infinite supply for testing)
-        if (zeroForOne) {
-            MockERC20(address(Currency.unwrap(currency0))).mint(address(this), amountIn * 2); // Mint double the input amount for token0
-        } else {
-            MockERC20(address(Currency.unwrap(currency1))).mint(address(this), amountIn * 2); // Mint double the input amount for token1
+            MockERC20(address(Currency.unwrap(currency1))).mint(address(this), amountIn * 2);
         }
 
         totalSwaps++;
         totalVolume += amountIn;
-        totalFeesCollected += feeAmt;
+        swapHistory.push(SwapData(totalSwaps, amountIn, zeroForOne, priceAB, priceBA));
     }
 
-    // CSV helpers
-    function _readCsvLine(string memory csv, uint256 lineNum)
-        internal
-        pure
-        returns (string memory, string memory, string memory, string memory)
-    {
-        bytes memory data = bytes(csv);
+    function _trade(uint256 probability) internal view returns (bool) {
+        return _randomBool(probability);
+    }
 
-        uint256 currentLine = 0;
+    function _randomBool(uint256 probability) internal view returns (bool) {
+        return uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp))) % 100 < probability;
+    }
+
+    function _randomNormal(uint256 mean, uint256 std) internal view returns (uint256) {
+        uint256 rand = uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp))) % 1000;
+        return mean + (rand > 500 ? std : 0);
+    }
+
+    // Helpers from example
+    function _split(string memory str, string memory delim) internal pure returns (string[] memory) {
+        uint256 count = 1;
+        for (uint256 i = 0; i < bytes(str).length; i++) {
+            if (bytes(str)[i] == bytes(delim)[0]) count++;
+        }
+        string[] memory parts = new string[](count);
+        uint256 partIndex = 0;
         uint256 start = 0;
-        for (uint256 i = 0; i < data.length; i++) {
-            if (data[i] == "\n") {
-                currentLine++;
-                if (currentLine == lineNum) {
-                    start = i + 1;
-                    break;
-                }
+        for (uint256 i = 0; i < bytes(str).length; i++) {
+            if (bytes(str)[i] == bytes(delim)[0]) {
+                parts[partIndex] = _substring(str, start, i);
+                partIndex++;
+                start = i + 1;
             }
         }
-        if (currentLine != lineNum) return ("", "", "", "");
-
-        string[4] memory fields;
-        uint256 field = 0;
-        uint256 fieldStart = start;
-
-        for (uint256 i = start; i <= data.length; i++) {
-            bool isEnd = i == data.length || data[i] == "\n";
-            bool isComma = !isEnd && data[i] == ",";
-            if (isComma || isEnd) {
-                bytes memory fieldBytes = new bytes(i - fieldStart);
-                for (uint256 j = 0; j < fieldBytes.length; j++) {
-                    fieldBytes[j] = data[fieldStart + j];
-                }
-                fields[field] = string(fieldBytes);
-                field++;
-                fieldStart = i + 1;
-                if (isEnd || field == 4) break;
-            }
-        }
-
-        if (field < 4) return ("", "", "", "");
-        return (fields[0], fields[1], fields[2], fields[3]);
+        parts[partIndex] = _substring(str, start, bytes(str).length);
+        return parts;
     }
 
-    function _parseDecimal(string memory s, uint256 targetDecimals) internal pure returns (uint256) {
-        bytes memory b = bytes(s);
-        uint256 result = 0;
-        uint256 decimals = 0;
-        bool hasDecimal = false;
+    function _substring(string memory str, uint256 start, uint256 end) internal pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        bytes memory result = new bytes(end - start);
+        for (uint256 i = start; i < end; i++) {
+            result[i - start] = strBytes[i];
+        }
+        return string(result);
+    }
 
+    // Integers are multiplied by 10^8
+    function _parseInt(string memory str) internal pure returns (int256) {
+        bytes memory b = bytes(str);
+        int256 result = 0;
+        bool decimal = false;
+        uint256 decimals = 0;
         for (uint256 i = 0; i < b.length; i++) {
-            uint8 c = uint8(b[i]);
-            if (c == 46) {
-                // '.'
-                hasDecimal = true;
-                continue;
-            }
-            if (c >= 48 && c <= 57) {
-                result = result * 10 + (c - 48);
-                if (hasDecimal) decimals++;
+            if (b[i] == ".") {
+                decimal = true;
+            } else {
+                result = result * 10 + int256(uint256(uint8(b[i])) - 48);
+                if (decimal) decimals++;
             }
         }
-
-        if (decimals < targetDecimals) result *= 10 ** (targetDecimals - decimals);
-        else if (decimals > targetDecimals) result /= 10 ** (decimals - targetDecimals);
-
+        while (decimals < 8) {
+            result *= 10;
+            decimals++;
+        }
         return result;
     }
 
-    function _countLines(string memory csv) internal pure returns (uint256) {
-        bytes memory b = bytes(csv);
-        uint256 count = 1;
-        for (uint256 i = 0; i < b.length; i++) {
-            if (b[i] == "\n") count++;
-        }
-        return count;
-    }
-
-    // Lifetime fees helper (Q128 = 2^128)
-    function calculateLifetimeFeesV4(
-        uint256 liquidity,
-        uint256 feeGrowthInside0Current,
-        uint256 feeGrowthInside1Current
-    ) public pure returns (uint256 token0LifetimeFees, uint256 token1LifetimeFees) {
-        uint256 Q128 = 2 ** 128;
-        token0LifetimeFees = (feeGrowthInside0Current * liquidity) / Q128;
-        token1LifetimeFees = (feeGrowthInside1Current * liquidity) / Q128;
-    }
-
-    function _printSummary(string memory csv) internal view {
+    function _printSummary() internal view {
         console.log("\n=== SUMMARY ===");
         console.log("Swaps:", totalSwaps);
         console.log("Volume:", totalVolume);
         console.log("Fees:", totalFeesCollected);
-        console.log("Price updates:", priceUpdates);
         uint256 n = swapHistory.length;
         uint256 start = n > 6 ? n - 6 : 0;
-        for (uint256 i = start; i < n; i++) {
+        for (uint256 i = 0; i < n; i++) {
             SwapData memory s = swapHistory[i];
             console.log(
                 string.concat(
@@ -279,8 +306,10 @@ contract SimulateTradesTest is Test, HookTest {
                     s.zeroForOne ? "A->B" : "B->A",
                     " in=",
                     vm.toString(s.amountIn),
-                    " fee=",
-                    vm.toString(s.feeAmount)
+                    " priceAB=",
+                    vm.toString(s.priceAB),
+                    " priceBA=",
+                    vm.toString(s.priceBA)
                 )
             );
         }
@@ -288,8 +317,6 @@ contract SimulateTradesTest is Test, HookTest {
         int24 tickLower = truncateTickSpacing(TickMath.MIN_TICK, tickSpacing);
         int24 tickUpper = truncateTickSpacing(TickMath.MAX_TICK, tickSpacing);
 
-        // Get position liquidity (assuming tokenId is set)
-        bytes32 positionId = keccak256(abi.encodePacked(address(this), tickLower, tickUpper));
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             poolManager.getFeeGrowthInside(poolId, tickLower, tickUpper);
 
@@ -299,48 +326,33 @@ contract SimulateTradesTest is Test, HookTest {
         uint256 totalFeesToken0 = (feeGrowthInside0X128 * liquidity) / Q128;
         uint256 totalFeesToken1 = (feeGrowthInside1X128 * liquidity) / Q128;
 
-        // console.log("Liquidity to print: ", feeGrowthInside0X128);
-
         console.log("Total Fees Gained - Token0:", totalFeesToken0, "Token1:", totalFeesToken1);
 
-        // Get latest prices
         (, int256 ethPrice,,,) = priceFeed0.latestRoundData();
         (, int256 shibPrice,,,) = priceFeed1.latestRoundData();
 
         uint256 ethPriceUint = uint256(ethPrice);
         uint256 shibPriceUint = uint256(shibPrice);
 
-        // Convert fees to USD
         uint256 usdFeesToken0 = (totalFeesToken0 * ethPriceUint) / (10 ** 26);
         uint256 usdFeesToken1 = (totalFeesToken1 * shibPriceUint) / (10 ** 26);
         uint256 totalFeesUSD = usdFeesToken0 + usdFeesToken1;
 
         console.log("Total Fees in USD:", totalFeesUSD);
 
-        // Get first prices
-        (,, string memory priceAStr, string memory priceBStr) = _readCsvLine(csv, 1);
-        uint256 priceAB = _parseDecimal(priceAStr, 8);
-        uint256 priceBA = _parseDecimal(priceBStr, 8);
-
-        // Initial amounts and USD values
-        uint256 initialToken0 = token0Amount; // 100e18
-        uint256 initialToken1 = token1Amount; // 100e18
-        uint256 initialUSD0 = (initialToken0 * priceAB) / (10 ** 26);
-        uint256 initialUSD1 = (initialToken1 * priceBA) / (10 ** 26);
+        uint256 initialToken0 = token0Amount;
+        uint256 initialToken1 = token1Amount;
+        uint256 initialUSD0 = (initialToken0 * initialPriceA) / (10 ** 26);
+        uint256 initialUSD1 = (initialToken1 * initialPriceB) / (10 ** 26);
         uint256 initialTotalUSD = initialUSD0 + initialUSD1;
 
         console.log("Initial Token0:", initialToken0, "USD:", initialUSD0);
         console.log("Initial Token1:", initialToken1, "USD:", initialUSD1);
         console.log("Initial Total USD:", initialTotalUSD);
 
-        // Final amounts and USD values
-        uint128 positionLiquidity = poolManager.getLiquidity(poolId);
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
         (uint256 finalToken0, uint256 finalToken1) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            positionLiquidity
+            sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
         );
         uint256 finalUSD0 = (finalToken0 * ethPriceUint) / (10 ** 26);
         uint256 finalUSD1 = (finalToken1 * shibPriceUint) / (10 ** 26);
@@ -350,17 +362,16 @@ contract SimulateTradesTest is Test, HookTest {
         console.log("Final Token1:", finalToken1, "USD:", finalUSD1);
         console.log("Final Total USD:", finalTotalUSD);
 
-        // Calculating the IL
         uint256 holdingValue =
             (initialToken0 * ethPriceUint) / (10 ** 26) + (initialToken1 * shibPriceUint) / (10 ** 26);
         uint256 impermanentLoss = holdingValue > finalTotalUSD ? holdingValue - finalTotalUSD : 0;
 
-        console.log("Holding Value at Final Prices:", holdingValue);
-        console.log("LP Value at Final Prices:", finalTotalUSD);
-        console.log("Impermanent Loss (USD):", impermanentLoss);
+        console.log("Holding Value at Final Prices USD:", holdingValue);
+        console.log("LP Value at Final Prices USD:", finalTotalUSD);
+        console.log("Impermanent Loss USD:", impermanentLoss);
 
         int256 effectiveIL = int256(impermanentLoss) - int256(totalFeesUSD);
-        console.log("Effective Impermanent Loss (after fees):", effectiveIL);
+        console.log("Effective Impermanent Loss (after fees) USD:", effectiveIL);
         if (effectiveIL <= 0) {
             console.log("Gain from fees covering IL:", uint256(-effectiveIL));
         } else {
