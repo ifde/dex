@@ -112,6 +112,10 @@ contract HookTest is BaseTest {
         int24 tickLower = truncateTickSpacing((currentTick - 750 * tickSpacing), tickSpacing);
         int24 tickUpper = truncateTickSpacing((currentTick + 750 * tickSpacing), tickSpacing);
 
+        // Use full-range ticks, aligned to tickSpacing
+        int24 minTick = truncateTickSpacing(TickMath.MIN_TICK, tickSpacing);
+        int24 maxTick = truncateTickSpacing(TickMath.MAX_TICK, tickSpacing);
+
         // Initialize the pool - this will trigger afterInitialize and set the dynamic fee
         poolManager.initialize(poolKey, startingPrice);
         poolManager.initialize(noHookKey, startingPrice);
@@ -122,8 +126,8 @@ contract HookTest is BaseTest {
         // "What should be the liquidity?"
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
-            TickMath.getSqrtPriceAtTick(tickLower), // if the price is below the tick, you don't earn fees
-            TickMath.getSqrtPriceAtTick(tickUpper), // if the price is above the tick, you don't earn fees
+            TickMath.getSqrtPriceAtTick(minTick), // if the price is below the tick, you don't earn fees
+            TickMath.getSqrtPriceAtTick(maxTick), // if the price is above the tick, you don't earn fees
             token0Amount,
             token1Amount
         );
@@ -136,8 +140,8 @@ contract HookTest is BaseTest {
 
         (tokenId,) = positionManager.mint(
             poolKey,
-            tickLower,
-            tickUpper,
+            minTick,
+            maxTick,
             liquidity,
             amount0Max,
             amount1Max,
@@ -148,8 +152,8 @@ contract HookTest is BaseTest {
 
         (noHookTokenId,) = positionManager.mint(
             noHookKey,
-            tickLower,
-            tickUpper,
+            minTick,
+            maxTick,
             liquidity,
             amount0Max,
             amount1Max,
