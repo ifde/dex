@@ -1,65 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Uniswap V4 Hook Configurator</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
     <style>
-        body { display: flex; font-family: Arial, sans-serif; }
-        .left { flex: 1; padding: 20px; }
-        .right { flex: 0 0 60%; max-width: 60%; padding: 20px; }
-        pre { 
-        background: #f4f4f4; 
-        padding: 10px; 
-        border-radius: 5px; 
-        max-height: 60vh; 
-        overflow: auto; 
-        white-space: pre-wrap !important; 
-        word-wrap: break-word !important; 
+        body {
+            display: block;
+            font-family: Arial, sans-serif;
         }
-        .language-solidity { white-space: pre-wrap !important; word-wrap: break-word !important; }
+
+        .left {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .right {
+            flex: 0 0 60%;
+            max-width: 60%;
+            padding: 20px;
+        }
+
+        .mainContainer {
+            display: flex;
+            width: 100%;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        #runForm {
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            display: block;
+            width: 30%;
+            /* Standard block flow */
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 60vh;
+            overflow: auto;
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+        }
+
+        .language-solidity {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+        }
+
         .param {
-        display: grid;
-        grid-template-columns: 1fr 160px; /* label wraps, input fixed */
-        column-gap: 12px;
-        align-items: center;
-        margin: 6px 0;
+            display: grid;
+            grid-template-columns: 1fr 160px;
+            /* label wraps, input fixed */
+            column-gap: 12px;
+            align-items: center;
+            margin: 6px 0;
         }
+
         .param label {
-        white-space: normal;
-        overflow-wrap: anywhere;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
+
         .param input {
-        width: 100%;
-        box-sizing: border-box;
+            width: 100%;
+            box-sizing: border-box;
         }
     </style>
 </head>
+
 <body>
-    <div class="left">
-        <h1>Select a Hook</h1>
-        <form id="hookForm">
-            <select name="hook" id="hookSelect">
-                {% for hook in hooks %}
-                <option value="{{ hook }}">{{ hook }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit">Select</button>
-        </form>
-        
-        <div id="hookDetails" style="display:none;">
-            <h2>Description</h2>
-            <p id="description"></p>
-            <h2>Parameters</h2>
-            <div id="params"></div>
-            <button id="downloadBtn">Download Project</button>
+    <div class="mainContainer">
+        <div class="left">
+            <h1>Select a Hook</h1>
+            <form id="hookForm">
+                <select name="hook" id="hookSelect">
+                    {% for hook in hooks %}
+                    <option value="{{ hook }}">{{ hook }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Select</button>
+            </form>
+
+            <div id="hookDetails" style="display:none;">
+                <h2>Description</h2>
+                <p id="description"></p>
+                <h2>Parameters</h2>
+                <div id="params"></div>
+                <button id="downloadBtn">Download Project</button>
+            </div>
+        </div>
+
+        <div class="right">
+            <h2>Code</h2>
+            <pre><code id="code" class="language-solidity"></code></pre>
         </div>
     </div>
-    
-    <div class="right">
-        <h2>Code</h2>
-        <pre><code id="code" class="language-solidity"></code></pre>
+
+    <form id="runForm">
+        <div class="param"><label>Hook</label><select id="hookInput" name="hook">
+                {% for hook in hooks %}<option value="{{ hook }}">{{ hook }}</option>{% endfor %}
+            </select></div>
+        <div class="param"><label>Year</label><input type="number" id="yearInput" name="year" value="2024"></div>
+        <div class="param"><label>Month (1-12)</label><input type="number" id="monthInput" name="month" value="1"></div>
+        <div class="param"><label>Token A (e.g., ETHUSDT)</label><input type="text" id="tokenAInput" name="tokenA"
+                value="ETHUSDT"></div>
+        <div class="param"><label>Token B (e.g., SHIBUSDT)</label><input type="text" id="tokenBInput" name="tokenB"
+                value="SHIBUSDT"></div>
+        <button type="submit">Run Simulation</button>
+    </form>
+
+    <div id="results" style="display:none;">
+        <div id="imagesContainer"></div>
+        <h2>Summary</h2>
+        <pre id="summary"></pre>
     </div>
+
+    <script>
+        document.getElementById('runForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            fetch('/run_sim', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    const container = document.getElementById('imagesContainer');
+                    container.innerHTML = '';  // Clear previous
+                    data.images.forEach(img => {
+                        const h2 = document.createElement('h2');
+                        h2.textContent = img.title;
+                        const imgEl = document.createElement('img');
+                        imgEl.src = img.path;
+                        imgEl.alt = img.title + ' Graph';
+                        imgEl.style.maxWidth = '100%';
+                        imgEl.style.height = 'auto';
+                        container.appendChild(h2);
+                        container.appendChild(imgEl);
+                    });
+                    document.getElementById('summary').textContent = data.summary;
+                    document.getElementById('results').style.display = 'block';
+                });
+        });
+    </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-solidity.min.js"></script>
@@ -67,36 +153,36 @@
         let currentCode = '';
         let paramDefaults = {};
 
-        document.getElementById('hookForm').addEventListener('submit', function(e) {
+        document.getElementById('hookForm').addEventListener('submit', function (e) {
             e.preventDefault();
             const hook = document.getElementById('hookSelect').value;
             fetch('/select_hook', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'hook=' + hook
             })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('description').innerHTML = data.description;
-                currentCode = data.code;
-                paramDefaults = {};
-                data.params.forEach(p => {
-                    const [key, value] = p.split(': ');
-                    paramDefaults[key] = value.split(' ')[0]; // Extract number
-                });
-                const paramsHtml = data.params.map(p => {
-                const [key, value] = p.split(': ');
-                const num = value.split(' ')[0];
-                return `<div class="param">
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('description').innerHTML = data.description;
+                    currentCode = data.code;
+                    paramDefaults = {};
+                    data.params.forEach(p => {
+                        const [key, value] = p.split(': ');
+                        paramDefaults[key] = value.split(' ')[0]; // Extract number
+                    });
+                    const paramsHtml = data.params.map(p => {
+                        const [key, value] = p.split(': ');
+                        const num = value.split(' ')[0];
+                        return `<div class="param">
                             <label title="${key}">${key}:</label>
                             <input type="number" value="${num}" data-param="${key}">
                         </div>`;
-                }).join('');
-                document.getElementById('params').innerHTML = paramsHtml;
-                updateCode();
-                document.getElementById('hookDetails').style.display = 'block';
-                document.getElementById('downloadBtn').onclick = () => window.location.href = `/download/${hook}`;
-            });
+                    }).join('');
+                    document.getElementById('params').innerHTML = paramsHtml;
+                    updateCode();
+                    document.getElementById('hookDetails').style.display = 'block';
+                    document.getElementById('downloadBtn').onclick = () => window.location.href = `/download/${hook}`;
+                });
         });
 
         function updateCode() {
@@ -113,11 +199,12 @@
             Prism.highlightElement(document.getElementById('code'));
         }
 
-        document.addEventListener('input', function(e) {
+        document.addEventListener('input', function (e) {
             if (e.target.matches('input[data-param]')) {
                 updateCode();
             }
         });
     </script>
 </body>
+
 </html>

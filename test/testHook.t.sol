@@ -131,6 +131,8 @@ contract BaseHookTest is Test, HookTest {
             // Roll to next block (simulate 1-minute snapshot)
             vm.roll(initialBlock + i);
 
+            uint256 gasStart = gasleft();
+
             uint256 amountIn = 1e18;
             BalanceDelta swapDelta1 = swapRouter.swapExactTokensForTokens({
                 amountIn: amountIn,
@@ -142,6 +144,10 @@ contract BaseHookTest is Test, HookTest {
                 deadline: block.timestamp + 1
             });
 
+            uint256 gasUsed = gasStart - gasleft();
+
+            vm.snapshotGasLastCall("swap_with_dynamic_fee");
+
             // Log current fees (query hook)
             uint24 feeAB = hookContract.getFee(
                 address(0), poolKey, SwapParams({zeroForOne: true, amountSpecified: 1e18, sqrtPriceLimitX96: 0}), ""
@@ -152,7 +158,14 @@ contract BaseHookTest is Test, HookTest {
 
             string memory logMessage = string(
                 abi.encodePacked(
-                    "Block ", vm.toString(block.number), " FeeAB: ", vm.toString(feeAB), " FeeBA: ", vm.toString(feeBA)
+                    "Block ",
+                    vm.toString(block.number),
+                    " | Gas: ",
+                    vm.toString(gasUsed),
+                    " | FeeAB: ",
+                    vm.toString(feeAB),
+                    " | FeeBA: ",
+                    vm.toString(feeBA)
                 )
             );
             console.log(logMessage);

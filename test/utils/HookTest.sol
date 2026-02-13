@@ -96,7 +96,7 @@ contract HookTest is BaseTest {
         hookContract = IHooksExtended(flags);
     }
 
-    function deployPool() internal {
+    function deployPool() internal virtual {
         // Create the pool with DYNAMIC FEE
         poolKey = PoolKey(currency0, currency1, LPFeeLibrary.DYNAMIC_FEE_FLAG, tickSpacing, IHooks(hookContract));
         poolId = poolKey.toId();

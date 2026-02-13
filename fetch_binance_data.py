@@ -26,14 +26,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fetch Binance klines for a specific month.')
     parser.add_argument('--symbol1', default="ETHUSDT", help='First token pair (e.g., ETHUSDT)')
     parser.add_argument('--symbol2', default="SHIBUSDT", help='Second token pair (e.g., SHIBUSDT)')
+    parser.add_argument('--year', type=int, default=2024, help='Year (default: 2024)')
+    parser.add_argument('--month', type=int, default=1, help='Month (1-12, default: 1)')
     args = parser.parse_args()
 
-    # Define the specific month: January 2024
-    start_date = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-    end_date = datetime(2024, 1, 31, 23, 59, 59, tzinfo=timezone.utc)
-    
+    # Define the specific month. Default: January 2024
+    start_date = datetime(args.year, args.month, 1, 0, 0, 0, tzinfo=timezone.utc)
+    if args.month == 12:
+        end_date = datetime(args.year + 1, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    else:
+        end_date = datetime(args.year, args.month + 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     start_time = int(start_date.timestamp() * 1000)  # ms
-    end_time = int(end_date.timestamp() * 1000)      # ms
+    end_time = int(end_date.timestamp() * 1000) - 1   # ms
     
     # Fetch and save for first symbol (to ETHUSDT-1m-latest.csv)
     data1 = fetch_klines(args.symbol1.upper(), start_time=start_time, end_time=end_time)

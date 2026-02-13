@@ -70,6 +70,22 @@ feeAB + feeBA = K
 So feeBA = K - feeAB    
 
 
+### Gas usage
+
+![](image-7.png)
+
+![alt text](image-8.png)
+
+On average 77200 units
+1 unit = 0.033 gwei = 10^(-9) * 0.033 ETH
+Price of 1 ETH is around $3,000
+1 unit = 10^(-9) * 0.033 ETH = 10^(-9) * 0.033 * 3000 USD = 10^(-7) USD
+
+1 swap = 77200 * 10^(-7) USD = 0.008 USD
+
+
+
+
 
 
 

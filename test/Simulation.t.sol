@@ -3,6 +3,8 @@ pragma solidity ^0.8.26;
 
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import {console} from "forge-std/console.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -20,14 +22,22 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+
 import {MockV3Aggregator} from "@chainlink/local/src/data-feeds/MockV3Aggregator.sol";
 
 import {HookTest} from "./utils/HookTest.sol";
+
+import {EasyPosm} from "./utils/libraries/EasyPosm.sol";
 
 contract SimulateTradesTest is Test, HookTest {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
+
+    using EasyPosm for IPositionManager;
 
     uint256 public totalSwaps;
     uint256 public totalVolume;
@@ -40,6 +50,7 @@ contract SimulateTradesTest is Test, HookTest {
         bool zeroForOne;
         int256 priceAB;
         int256 priceBA;
+        uint256 poolPrice;
     }
 
     SwapData[] public swapHistory;
@@ -67,10 +78,95 @@ contract SimulateTradesTest is Test, HookTest {
     uint256 initialPriceA;
     uint256 initialPriceB;
 
+    function deployPool() internal override {
+        // Calculate startingPrice from CSV
+        uint160 startingPrice = calculateStartingPrice();
+
+        // Create the pool with DYNAMIC FEE
+        poolKey = PoolKey(currency0, currency1, LPFeeLibrary.DYNAMIC_FEE_FLAG, tickSpacing, IHooks(hookContract));
+        poolId = poolKey.toId();
+
+        noHookKey = PoolKey(currency0, currency1, _BASE_FEE, tickSpacing, IHooks(address(0)));
+        noHookPoolId = noHookKey.toId();
+
+        // Use calculated startingPrice instead of Constants.SQRT_PRICE_1_1
+        // startingPrice is already set above
+
+        // ...copy the rest of the original deployPool code, replacing Constants.SQRT_PRICE_1_1 with startingPrice...
+        int24 currentTick = TickMath.getTickAtSqrtPrice(startingPrice);
+
+        int24 tickLower = truncateTickSpacing((currentTick - 750 * tickSpacing), tickSpacing);
+        int24 tickUpper = truncateTickSpacing((currentTick + 750 * tickSpacing), tickSpacing);
+
+        // Use full-range ticks, aligned to tickSpacing
+        int24 minTick = truncateTickSpacing(TickMath.MIN_TICK, tickSpacing);
+        int24 maxTick = truncateTickSpacing(TickMath.MAX_TICK, tickSpacing);
+
+        // Initialize the pool - this will trigger afterInitialize and set the dynamic fee
+        poolManager.initialize(poolKey, startingPrice);
+        poolManager.initialize(noHookKey, startingPrice);
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            startingPrice,
+            TickMath.getSqrtPriceAtTick(minTick),
+            TickMath.getSqrtPriceAtTick(maxTick),
+            token0Amount,
+            token1Amount
+        );
+
+        console.log("Liquidity added: ", liquidity);
+
+        uint256 amount0Max = token0Amount + 1;
+        uint256 amount1Max = token1Amount + 1;
+
+        (tokenId,) = positionManager.mint(
+            poolKey,
+            minTick,
+            maxTick,
+            liquidity,
+            amount0Max,
+            amount1Max,
+            address(this),
+            block.timestamp,
+            Constants.ZERO_BYTES
+        );
+    }
+
+    function calculateStartingPrice() internal returns (uint160) {
+        // Read the first data line from ETHUSDT CSV
+        string memory csvPath = "ETHUSDT-1m-latest.csv";
+        string memory csvContent = vm.readFile(csvPath);
+        string[] memory lines = vm.split(csvContent, "\n");
+        string memory firstLine = lines[1]; // Assuming no header or adjust index
+        string[] memory parts = vm.split(firstLine, ",");
+        int256 ethClose = _parseInt(parts[4]); // Use _parseInt for decimal parsing
+        uint256 ethPrice = uint256(ethClose); // Already scaled to 10^8
+
+        // Read SHIBUSDT CSV
+        csvPath = "SHIBUSDT-1m-latest.csv";
+        csvContent = vm.readFile(csvPath);
+        lines = vm.split(csvContent, "\n");
+        firstLine = lines[1];
+        parts = vm.split(firstLine, ",");
+        int256 shibClose = _parseInt(parts[4]); // Use _parseInt
+        uint256 shibPrice = uint256(shibClose); // Already scaled to 10^8
+
+        // Ratio SHIB/ETH
+        uint256 ratio = (shibPrice * 1e18) / ethPrice; // Ratio scaled to 10^18
+
+        // sqrtPriceX96 = sqrt(ratio) * 2^96
+        uint256 sqrtRatio = Math.sqrt(ratio); // sqrtRatio scaled to 10^9
+        uint160 sqrtPriceX96 = uint160((sqrtRatio * (1 << 96)) / 1e9); // Normalize scaling
+
+        return sqrtPriceX96;
+    }
+
     function setUp() public {
         deployArtifactsAndLabel();
         deployCurrencyPair();
-        deployHookAndFeeds("BAHook");
+
+        string memory hookName = vm.envOr("HOOK_NAME", string("BAHook"));
+        deployHookAndFeeds(hookName);
         deployPool();
 
         // Store initial prices
@@ -221,9 +317,13 @@ contract SimulateTradesTest is Test, HookTest {
             MockERC20(address(Currency.unwrap(currency1))).mint(address(this), amountIn * 2);
         }
 
+        // Calculate pool price after swap
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        uint256 poolPrice = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) * 100000000 >> 192;
+
         totalSwaps++;
         totalVolume += amountIn;
-        swapHistory.push(SwapData(totalSwaps, amountIn, zeroForOne, priceAB, priceBA));
+        swapHistory.push(SwapData(totalSwaps, amountIn, zeroForOne, priceAB, priceBA, poolPrice));
     }
 
     function _trade(uint256 probability) internal view returns (bool) {
@@ -290,10 +390,6 @@ contract SimulateTradesTest is Test, HookTest {
     }
 
     function _printSummary() internal view {
-        console.log("\n=== SUMMARY ===");
-        console.log("Swaps:", totalSwaps);
-        console.log("Volume:", totalVolume);
-        console.log("Fees:", totalFeesCollected);
         uint256 n = swapHistory.length;
         uint256 start = n > 6 ? n - 6 : 0;
         for (uint256 i = 0; i < n; i++) {
@@ -306,13 +402,19 @@ contract SimulateTradesTest is Test, HookTest {
                     s.zeroForOne ? "A->B" : "B->A",
                     " in=",
                     vm.toString(s.amountIn),
-                    " priceAB=",
+                    " priceA=",
                     vm.toString(s.priceAB),
-                    " priceBA=",
-                    vm.toString(s.priceBA)
+                    " priceB=",
+                    vm.toString(s.priceBA),
+                    " poolPrice=",
+                    vm.toString(s.poolPrice)
                 )
             );
         }
+
+        console.log("\n=== SUMMARY ===");
+        console.log("Swaps:", totalSwaps);
+        console.log("Volume:", totalVolume);
 
         int24 tickLower = truncateTickSpacing(TickMath.MIN_TICK, tickSpacing);
         int24 tickUpper = truncateTickSpacing(TickMath.MAX_TICK, tickSpacing);

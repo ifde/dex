@@ -39,7 +39,7 @@ forge script script/deployHookAndCreatePool.s.sol BAHook 0 0 0 0 --rpc-url http:
 
 `Usual testing`
 ```
-forge test -vvvv --match-path test/testHook.t.sol
+orge test -vvvv --match-path test/testHook.t.sol --gas-limit 10000000000
 ```
 
 Test specific for `MEVChargeHook`

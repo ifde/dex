@@ -47,7 +47,7 @@ First, create a Python virtual environment and install dependencies
 ```
 python -m venv .venv 
 source ./.venv/bin/activate # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install requests
 ```
 
 Then upload historical market data from Binance:
@@ -59,7 +59,7 @@ python fetch_binance_data.py
 Then run tests
 
 ```
-forge -vvvv test
+forge -vvvv test --gas-limit 10000000000000
 ```
 
 6. Enjoy
