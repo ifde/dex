@@ -217,6 +217,9 @@ def serve_static(filename):
     return send_from_directory(os.path.join(app.root_path, 'static'), filename)
 
 def generate_swap_graphs(swaps, tokenA, tokenB):
+    tokenA = tokenA[:-4] # ETH instead of ETHUSDT
+    tokenB = tokenB[:-4]
+
     images = []
     if not swaps:
         return images  # Empty list if no swaps
@@ -289,10 +292,10 @@ def generate_swap_graphs(swaps, tokenA, tokenB):
         plt.figure(figsize=(12, 6))
         nums = [s['num'] for s in swaps]
         ratios = [s['priceB'] / s['priceA'] for s in swaps]  # SHIB/ETH ratio (priceB and priceA are scaled by 10^8, so ratio is correct)
-        plt.plot(nums, ratios, marker='o', markersize=6, linestyle='-', color='purple', label='SHIB/ETH Ratio')
-        plt.title(f'SHIB/ETH CEX Ratio Over Time')
+        plt.plot(nums, ratios, marker='o', markersize=6, linestyle='-', color='purple', label=f'{tokenB} / {tokenA} Ratio')
+        plt.title(f'{tokenB} / {tokenA} CEX Ratio Over Time')
         plt.xlabel('Swap #')
-        plt.ylabel('SHIB/ETH Ratio')
+        plt.ylabel(f'{tokenB} / {tokenA} Ratio')
         plt.legend()
         plt.grid(True)
         max_num = max(nums)
@@ -301,7 +304,7 @@ def generate_swap_graphs(swaps, tokenA, tokenB):
         ratio_path = os.path.join(static_dir, 'shib_eth_ratio_graph.png')
         plt.savefig(ratio_path)
         plt.close()
-        images.append({"title": "SHIB/ETH CEX Ratio", "path": f'/static/shib_eth_ratio_graph.png?timestamp={timestamp}'})
+        images.append({"title": f"{tokenB} / {tokenA} CEX Ratio", "path": f'/static/shib_eth_ratio_graph.png?timestamp={timestamp}'})
 
     # Image 4: Pool Price Changes
     if swaps:

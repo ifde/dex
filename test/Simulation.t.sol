@@ -44,6 +44,9 @@ contract SimulateTradesTest is Test, HookTest {
     uint256 public totalFeesCollected;
     uint256 public priceUpdates;
 
+    uint256 public actualInitialToken0;
+    uint256 public actualInitialToken1;
+
     struct SwapData {
         uint256 swapNumber;
         uint256 amountIn;
@@ -119,7 +122,7 @@ contract SimulateTradesTest is Test, HookTest {
         uint256 amount0Max = token0Amount + 1;
         uint256 amount1Max = token1Amount + 1;
 
-        (tokenId,) = positionManager.mint(
+        (uint256 tokenId, BalanceDelta delta) = positionManager.mint(
             poolKey,
             minTick,
             maxTick,
@@ -130,6 +133,15 @@ contract SimulateTradesTest is Test, HookTest {
             block.timestamp,
             Constants.ZERO_BYTES
         );
+
+        // Capture actual amounts used
+        int128 amt0 = delta.amount0();
+        int128 amt1 = delta.amount1();
+        require(amt0 <= 0 && amt1 <= 0, "Unexpected positive delta in mint");
+        actualInitialToken0 = uint256(-int256(amt0));
+        actualInitialToken1 = uint256(-int256(amt1));
+        console.log("Actual Token0 added:", actualInitialToken0);
+        console.log("Actual Token1 added:", actualInitialToken1);
     }
 
     function calculateStartingPrice() internal returns (uint160) {
@@ -442,8 +454,10 @@ contract SimulateTradesTest is Test, HookTest {
 
         console.log("Total Fees in USD:", totalFeesUSD);
 
-        uint256 initialToken0 = token0Amount;
-        uint256 initialToken1 = token1Amount;
+        // uint256 initialToken0 = token0Amount;
+        // uint256 initialToken1 = token1Amount;
+        uint256 initialToken0 = actualInitialToken0; // Use actual amounts
+        uint256 initialToken1 = actualInitialToken1; // Use actual amounts
         uint256 initialUSD0 = (initialToken0 * initialPriceA) / (10 ** 26);
         uint256 initialUSD1 = (initialToken1 * initialPriceB) / (10 ** 26);
         uint256 initialTotalUSD = initialUSD0 + initialUSD1;
@@ -475,7 +489,7 @@ contract SimulateTradesTest is Test, HookTest {
         int256 effectiveIL = int256(impermanentLoss) - int256(totalFeesUSD);
         console.log("Effective Impermanent Loss (after fees) USD:", effectiveIL);
         if (effectiveIL <= 0) {
-            console.log("Gain from fees covering IL:", uint256(-effectiveIL));
+            console.log("Total gain:", finalTotalUSD - holdingValue + totalFeesUSD);
         } else {
             console.log("Net Loss:", uint256(effectiveIL));
         }

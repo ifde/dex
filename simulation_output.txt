@@ -1,11 +1,13 @@
 No files changed, compilation skipped
 
 Ran 1 test for test/Simulation.t.sol:SimulateTradesTest
-[PASS] testSimulateTradesFromCSVs() (gas: 1937287229)
+[PASS] testSimulateTradesFromCSVs() (gas: 1937287273)
 Logs:
   Flag address:  0x44440000000000000000000000000000000010C0
   BAHook.sol:BAHook
   Liquidity added:  6734900000000000
+  Actual Token0 added: 100000000000000000000
+  Actual Token1 added: 453588780100
   
 Hook: 0x44440000000000000000000000000000000010C0
   0x86abb822d8933afa54e28199f16af5bb90f18e3749931f6f4b90e054e25e5740
@@ -3015,8 +3017,8 @@ Hook: 0x44440000000000000000000000000000000010C0
   Total Fees Gained - Token0: 15664253175010763359 Token1: 4152289675983153
   Total Fees in USD: 36239
   Initial Token0: 100000000000000000000 USD: 300000
-  Initial Token1: 100000000000000000000 USD: 30
-  Initial Total USD: 300030
+  Initial Token1: 453588780100 USD: 0
+  Initial Total USD: 300000
   Final Token0: 627400073872874 USD: 1
   Final Token1: 72296577413522490 USD: 0
   Final Total USD: 1
@@ -3028,6 +3030,6 @@ Hook: 0x44440000000000000000000000000000000010C0
   === END ===
 
 
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.85s (1.84s CPU time)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.81s (1.81s CPU time)
 
-Ran 1 test suite in 1.86s (1.85s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+Ran 1 test suite in 1.82s (1.81s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
