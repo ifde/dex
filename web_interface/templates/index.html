@@ -181,7 +181,19 @@
                     document.getElementById('params').innerHTML = paramsHtml;
                     updateCode();
                     document.getElementById('hookDetails').style.display = 'block';
-                    document.getElementById('downloadBtn').onclick = () => window.location.href = `/download/${hook}`;
+                    document.getElementById('downloadBtn').onclick = () => {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/download/${hook}`;
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'code';
+                        input.value = document.getElementById('code').textContent;
+                        form.appendChild(input);
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                    };
                 });
         });
 
