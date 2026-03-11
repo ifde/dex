@@ -3,7 +3,7 @@
 ![alt text](image-3.png)
 
 1. Block-adaptive 
-Idea: if A becomes less desirable (price A / price B decreases), then traders will likely want to get more of token B
+Idea: if A becomes less desirable (CEX price A / price B decreases), then traders will likely want to get more of token B
 That means that the volume A -> B increases
 We want to reflect that by increasing a fee in the A -> B direction: 
 F_ab = F_ab + F_step
@@ -26,7 +26,7 @@ For the ModifyLiquidity operations:
 
 When liquidity is removed 
 
-penalty = fee * (time elapsed) / block_offset
+penalty = fee * (blocks elapsed) / block_offset
 
 this is donated to the pool 
 
@@ -68,6 +68,22 @@ And we keep a constant sum of fees:
 feeAB + feeBA = K   
 
 So feeBA = K - feeAB    
+
+
+### Gas usage
+
+![](image-7.png)
+
+![alt text](image-8.png)
+
+On average 77200 units
+1 unit = 0.033 gwei = 10^(-9) * 0.033 ETH
+Price of 1 ETH is around $3,000
+1 unit = 10^(-9) * 0.033 ETH = 10^(-9) * 0.033 * 3000 USD = 10^(-7) USD
+
+1 swap = 77200 * 10^(-7) USD = 0.008 USD
+
+
 
 
 

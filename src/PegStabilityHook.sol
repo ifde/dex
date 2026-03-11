@@ -25,7 +25,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PegStabilityHook
- * Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
+ * @notice Idea: if token B is bought from the pool (so its price increases) or DEX price B is already more than CEX price B
  * Then we stimulate swaps by keeping the minimum fee
  * On the other hand, Fee = percentage difference between Pool Price and CEX Price
  */
@@ -133,13 +133,11 @@ contract PegStabilityHook is BaseOverrideFee, Ownable {
      * @param   referenceSqrtPriceX96  Reference price obtained from the rate provider
      * @return  uint24  Fee charged to the user - fee in pips, i.e. 3000 = 0.3%
      */
-    function _calculateFee(
-        Currency,
-        Currency,
-        bool zeroForOne,
-        uint160 poolSqrtPriceX96,
-        uint160 referenceSqrtPriceX96
-    ) internal view returns (uint24) {
+    function _calculateFee(Currency, Currency, bool zeroForOne, uint160 poolSqrtPriceX96, uint160 referenceSqrtPriceX96)
+        internal
+        view
+        returns (uint24)
+    {
         // Pool price of token B is greater than CEX price of token B (which is the same is DEX price A < CEX price A)
         // OR we buy token B so its price increases
         if (zeroForOne || poolSqrtPriceX96 < referenceSqrtPriceX96) {
