@@ -202,8 +202,24 @@ def run_sim():
         "forge", "test", "--match-path", "test/Simulation.t.sol",
         "-vv", "--gas-limit", "100000000000"
     ]
-    with open(out_path, "w") as f:
-        subprocess.check_call(forge_cmd, cwd=PROJECT_ROOT, env=env, stdout=f, stderr=subprocess.STDOUT)
+
+    # Apply updated hook code from UI if provided
+    hook_src_path = os.path.join(PROJECT_ROOT, 'src', f'{hook}.sol')
+    updated_code = request.form.get('code', '').strip()
+    original_code = None
+    if updated_code and os.path.exists(hook_src_path):
+        with open(hook_src_path, 'r') as f:
+            original_code = f.read()
+        with open(hook_src_path, 'w') as f:
+            f.write(updated_code)
+
+    try:
+        with open(out_path, "w") as f:
+            subprocess.check_call(forge_cmd, cwd=PROJECT_ROOT, env=env, stdout=f, stderr=subprocess.STDOUT)
+    finally:
+        if original_code is not None:
+            with open(hook_src_path, 'w') as f:
+                f.write(original_code)
 
     # 3) Parse output
     summary, swaps = parse_sim_output(out_path)
