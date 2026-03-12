@@ -373,9 +373,21 @@ def parse_sim_output(path):
 def _scale_summary_line(line):
     # Scale large numbers (e.g., Volume, Fees) by dividing by 1e18 for readability
     # Example: "Volume: 11486891000000000000000" -> "Volume: 11486.891"
+
+    # Special case: "Total Fees Gained - Token0: 123 Token1: 456"
+    m = re.match(r'Total Fees Gained - Token0: (\d+) Token1: (\d+)', line)
+    if m:
+        return f"Total Fees Gained - Token0: {int(m.group(1)) / 1e18:.3f} Token1: {int(m.group(2)) / 1e18:.6f}"
+
+    # Special case: "Initial/Final Token0/1: 123 USD: 456"
+    m = re.match(r'(Initial|Final) (Token[01]): (\d+) USD: (\d+)', line)
+    if m:
+        return f"{m.group(1)} {m.group(2)}: {int(m.group(3)) / 1e18:.3f} USD: {m.group(4)}"
+
     patterns = [
-        (r'(Volume|Fees|Initial Token[01]|Final Token[01]|Total Fees Gained - Token[01]|Holding Value|LP Value|Impermanent Loss|Effective Impermanent Loss): (\d+)', lambda m: f"{m.group(1)}: {int(m.group(2)) / 1e18:.3f}"),
-        (r'(Swaps|Price updates|Impermanent Loss|Effective Impermanent Loss|Net Loss): (\d+)', lambda m: f"{m.group(1)}: {m.group(2)}"),  # No scaling for counts
+        (r'(Volume|Fees): (\d+)', lambda m: f"{m.group(1)}: {int(m.group(2)) / 1e18:.3f}"),
+        (r'(Holding Value|LP Value|Impermanent Loss|Effective Impermanent Loss|Initial Total USD|Final Total USD|Total Fees in USD): (\d+)', lambda m: f"{m.group(1)}: {m.group(2)}"),
+        (r'(Swaps|Price updates|Net Loss|Total gain): (\d+)', lambda m: f"{m.group(1)}: {m.group(2)}"),
     ]
     for pattern, replacer in patterns:
         match = re.search(pattern, line)

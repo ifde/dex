@@ -52,7 +52,11 @@ contract ABHook is BaseOverrideFee, Ownable {
     /**
      * @dev Initialize fees and last price for the pool.
      */
-    function _afterInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96, int24) internal override returns (bytes4) {
+    function _afterInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96, int24)
+        internal
+        override
+        returns (bytes4)
+    {
         PoolId poolId = key.toId();
         feeAB[poolId] = INITIAL_FEE;
         feeBA[poolId] = INITIAL_FEE;
@@ -112,15 +116,17 @@ contract ABHook is BaseOverrideFee, Ownable {
             return (this.afterSwap.selector, 0);
         }
         int256 deltaSqrt = int256(uint256(currentSqrtPriceX96)) - int256(uint256(lastPrice));
-        int256 delta = int256(FullMath.mulDiv(uint256(deltaSqrt < 0 ? -deltaSqrt : deltaSqrt), 10000, uint256(lastPrice)));
+        int256 delta =
+            int256(FullMath.mulDiv(uint256(deltaSqrt < 0 ? -deltaSqrt : deltaSqrt), 10000, uint256(lastPrice)));
         if (deltaSqrt < 0) delta = -delta;
 
         // Adjust fees only if last swap was A -> B
         if (isAToB) {
-            int256 feeAdjustment = int256(A) * delta / 10000; // Scale back from bps
+            // After A->B, price drops (delta < 0), so we negate delta to get a positive increment
+            int256 feeAdjustment = -int256(A) * delta / 10000; // F_AB += A * |delta|
             int256 newFeeAB = int256(uint256(feeAB[poolId])) + feeAdjustment;
             if (newFeeAB < 0) newFeeAB = 0;
-            if (newFeeAB > int256(uint256(MAX_FEE))) newFeeAB = int256(uint256(MAX_FEE));
+            if (newFeeAB > int256(uint256(K))) newFeeAB = int256(uint256(K)); // cap at K to keep feeBA >= 0
             feeAB[poolId] = uint24(uint256(newFeeAB));
             feeBA[poolId] = K - feeAB[poolId]; // Constant sum
         }
