@@ -112,6 +112,7 @@
                 value="ETHUSDT"></div>
         <div class="param"><label>Token B (e.g., SHIBUSDT)</label><input type="text" id="tokenBInput" name="tokenB"
                 value="SHIBUSDT"></div>
+        <input type="hidden" id="simCode" name="code">
         <button type="submit">Run Simulation</button>
     </form>
 
@@ -124,6 +125,7 @@
     <script>
         document.getElementById('runForm').addEventListener('submit', (e) => {
             e.preventDefault();
+            document.getElementById('simCode').value = document.getElementById('code').textContent;
             const fd = new FormData(e.target);
             fetch('/run_sim', { method: 'POST', body: fd })
                 .then(r => r.json())

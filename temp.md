@@ -171,6 +171,8 @@ Constructor of Dynamic Fees for Decentralized Exchanges.
 #### 3.2.4. Веб‑интерфейс  
 UI реализован в [web_interface/](web_interface/), основной файл — [web_interface/app.py](web_interface/app.py). Интерфейс позволяет выбирать параметры симуляций, запускать тесты и анализировать результаты. См. [notes/project.md](notes/project.md).
 
+
+
 ### 3.3. Описание алгоритма работы программы  
 1) Пользователь выбирает тип хука и параметры.  
 2) Скрипт развертывает артефакты Uniswap V4 и хук.  

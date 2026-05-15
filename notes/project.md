@@ -169,7 +169,7 @@ priceB - CEX price of token B at the moment when the swap was performed (scaled 
 Pool Price: scaled by 10^18
 
 Swaps: 2997
-Volume: 7412532752454372500000 (inout amount across all swaps, in wei)
+Volume: 7412532752454372500000 (input amount across all swaps, in wei)
 Total Fees Gained - Token0: 21530548654922137545 (in wei) Token1: 2343516691989428 (in wei)
 Total Fees in USD: 66732
 Initial Token0: 100000000000000000000 (in wei) USD: 300000. What we gave to the pool as a liquidity provider.
